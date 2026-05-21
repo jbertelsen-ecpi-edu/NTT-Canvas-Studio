@@ -1,0 +1,385 @@
+/*
+ * Width modifiers — applied to a component root (.ntt-tabs, .ntt-accordion,
+ * etc.) to constrain how wide the component renders. Default (no class) is
+ * full container width. Narrower widths are centered horizontally by
+ * default; .ntt-align-* overrides the horizontal placement.
+ */
+.ntt-width-narrow,
+.ntt-width-medium,
+.ntt-width-wide {
+  margin-left: auto;
+  margin-right: auto;
+}
+.ntt-width-narrow { max-width: 400px; }
+.ntt-width-medium { max-width: 600px; }
+.ntt-width-wide   { max-width: 900px; }
+
+/*
+ * Alignment modifiers — only visible when a width modifier is also set
+ * (otherwise the component spans the full container and margin: auto has
+ * no effect). Default (no class) is center.
+ */
+.ntt-align-left   { margin-left: 0;    margin-right: auto; }
+.ntt-align-center { margin-left: auto; margin-right: auto; }
+.ntt-align-right  { margin-left: auto; margin-right: 0;    }
+
+/*
+ * Tabs — Shoelace-style: tab labels are plain text, separated from the
+ * panel by a single thin line. The active tab is bold + colored, with a
+ * 2px colored line indicator running along the panel-facing edge of the
+ * tab (overlapping the separator).
+ */
+
+.ntt-tabs {
+  /* Don't use the `margin` shorthand here — it would reset margin-left and
+     margin-right to 0 and override the `margin: auto` from .ntt-width-* /
+     .ntt-align-* modifiers, which share the same specificity. */
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+/*
+ * Component-level editable heading. Lives at the top of any .ntt-* component
+ * (above the tabs-list / first accordion-item). In grid placements (start /
+ * end) the heading spans both columns so it sits above the tab strip and
+ * panels rather than just one column.
+ */
+.ntt-component-title {
+  margin: 0 0 0.75rem 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #002855;
+}
+
+/* Generic hide utility — toggled by the authoring "Hide Heading" action. */
+.ntt-is-hidden {
+  display: none !important;
+}
+
+.ntt-tabs--placement-start > .ntt-component-title,
+.ntt-tabs--placement-end > .ntt-component-title {
+  grid-column: 1 / -1;
+}
+
+.ntt-tabs-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  border-bottom: 1px solid #e1e5eb;
+  padding: 0;
+}
+
+.ntt-tab {
+  position: relative;
+  padding: 0.55rem 0;
+  border: 0;
+  background: transparent;
+  color: #56616f;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.ntt-tab:hover {
+  color: #0b2f57;
+}
+
+/* Suppress Canvas's default a:focus outline (orange) — Canvas's brand CSS
+   uses higher specificity and/or !important, so override with !important.
+   Keyboard focus still shows a ring via :focus-visible below. */
+.ntt-tab:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.ntt-tab:focus-visible {
+  outline: 2px solid #1976d2 !important;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.ntt-tab.is-active {
+  color: #002855;
+  font-weight: 600;
+}
+
+.ntt-tab.is-active::after {
+  content: "";
+  position: absolute;
+  background: currentColor;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+}
+
+.ntt-tab-panel {
+  padding: 1rem 0;
+  border: 0;
+  background: transparent;
+}
+
+.ntt-tab-panel[hidden] {
+  display: none;
+}
+
+/*
+ * Placement modifiers (default is top — no class needed).
+ *
+ *   --placement-bottom : tab strip below the panels.
+ *   --placement-start  : vertical tab strip on the left.
+ *   --placement-end    : vertical tab strip on the right.
+ *
+ * Vertical placements use CSS grid so the layout works both at runtime
+ * (one visible panel + many display:none ones) and in authoring (all
+ * panels visible).
+ */
+
+.ntt-tabs--placement-bottom {
+  display: flex;
+  flex-direction: column;
+}
+
+.ntt-tabs--placement-bottom > .ntt-tabs-list {
+  order: 2;
+  border-bottom: 0;
+  border-top: 1px solid #e1e5eb;
+}
+
+.ntt-tabs--placement-bottom .ntt-tab.is-active::after {
+  bottom: auto;
+  top: -1px;
+}
+
+.ntt-tabs--placement-bottom > .ntt-tab-panel {
+  order: 1;
+}
+
+.ntt-tabs--placement-start,
+.ntt-tabs--placement-end {
+  display: grid;
+  gap: 0 1.5rem;
+  align-items: start;
+}
+
+.ntt-tabs--placement-start { grid-template-columns: auto 1fr; }
+.ntt-tabs--placement-end   { grid-template-columns: 1fr auto; }
+
+/*
+ * Vertical tabs-list spans all panel rows so its (taller) height doesn't
+ * make row 1 huge and push subsequent panels down. align-self: start keeps
+ * the list anchored to the top of its spanned area.
+ */
+.ntt-tabs--placement-start > .ntt-tabs-list,
+.ntt-tabs--placement-end > .ntt-tabs-list {
+  grid-row: auto / span 99;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 0;
+  border-bottom: 0;
+  align-self: start;
+}
+
+/* Vertical tabs stretch to fill the list width, so the active indicator
+   sits flush with the separator line. */
+.ntt-tabs--placement-start .ntt-tab,
+.ntt-tabs--placement-end .ntt-tab {
+  padding: 0.45rem 1rem;
+}
+
+.ntt-tabs--placement-start > .ntt-tabs-list {
+  grid-column: 1;
+  border-right: 1px solid #e1e5eb;
+}
+.ntt-tabs--placement-start > .ntt-tab-panel { grid-column: 2; padding: 0; }
+
+.ntt-tabs--placement-start .ntt-tab.is-active::after {
+  left: auto;
+  right: -1px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  height: auto;
+}
+
+.ntt-tabs--placement-end > .ntt-tabs-list {
+  grid-column: 2;
+  border-left: 1px solid #e1e5eb;
+}
+.ntt-tabs--placement-end > .ntt-tab-panel { grid-column: 1; padding: 0; }
+
+.ntt-tabs--placement-end .ntt-tab.is-active::after {
+  right: auto;
+  left: -1px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  height: auto;
+}
+
+.ntt-accordion {
+  /* See note on .ntt-tabs above re: avoiding the margin shorthand. */
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+  border: 1px solid #c7cdd1;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.ntt-accordion-item + .ntt-accordion-item {
+  border-top: 1px solid #c7cdd1;
+}
+
+.ntt-accordion-header {
+  display: block;
+  padding: 0.75rem 1rem;
+  background: #f5f5f5;
+  color: #002855;
+  text-decoration: none;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ntt-accordion-header:hover {
+  background: #eef5ff;
+}
+
+.ntt-accordion-header:focus {
+  outline: none !important;
+  box-shadow: none !important;
+  background: #eef5ff;
+}
+
+.ntt-accordion-header:focus-visible {
+  outline: 2px solid #1976d2 !important;
+  outline-offset: -2px;
+}
+
+.ntt-accordion-header::before {
+  content: "\25B8"; /* right-pointing triangle, rotates when open */
+  display: inline-block;
+  margin-right: 0.5rem;
+  transition: transform 0.15s ease;
+}
+
+.ntt-accordion-item.is-open > .ntt-accordion-header::before {
+  transform: rotate(90deg);
+}
+
+.ntt-accordion-panel {
+  padding: 1rem;
+  background: #ffffff;
+}
+
+.ntt-accordion-panel[hidden] {
+  display: none;
+}
+
+/*
+ * File Download Row — standalone row authors drop into an accordion panel.
+ * Runtime decorates each row with a file-type icon, an "Updated" pill (if
+ * the data-updated date is within 30 days), and a formatted display date.
+ */
+
+.ntt-file-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 0.5rem;
+  border-bottom: 1px solid #eef0f3;
+}
+
+.ntt-file-row:last-child {
+  border-bottom: 0;
+}
+
+.ntt-file-row.is-updated {
+  border-left: 3px solid #ff8c00;
+  padding-left: 0.5rem;
+}
+
+.ntt-file-row__checkbox {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.ntt-file-row__icon {
+  flex: 0 0 auto;
+  display: inline-block;
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  background: #eef0f3;
+  color: #555;
+  text-align: center;
+  line-height: 36px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.ntt-file-row__icon[data-ext="pdf"]  { background: #fde8e7; color: #c0392b; }
+.ntt-file-row__icon[data-ext="doc"],
+.ntt-file-row__icon[data-ext="docx"] { background: #e3f0fd; color: #1565c0; }
+.ntt-file-row__icon[data-ext="ppt"],
+.ntt-file-row__icon[data-ext="pptx"] { background: #fbe9d8; color: #c0392b; }
+.ntt-file-row__icon[data-ext="xls"],
+.ntt-file-row__icon[data-ext="xlsx"] { background: #e1f3e2; color: #2e7d32; }
+.ntt-file-row__icon[data-ext="zip"]  { background: #f0eaf7; color: #6a3aaf; }
+.ntt-file-row__icon[data-ext="mp4"],
+.ntt-file-row__icon[data-ext="mov"]  { background: #e7f1fd; color: #1565c0; }
+.ntt-file-row__icon[data-ext="png"],
+.ntt-file-row__icon[data-ext="jpg"],
+.ntt-file-row__icon[data-ext="jpeg"],
+.ntt-file-row__icon[data-ext="gif"]  { background: #fff4d6; color: #a06a00; }
+
+.ntt-file-row__name {
+  flex: 1 1 auto;
+  font-weight: 500;
+  color: #002855;
+}
+
+.ntt-file-row.is-updated .ntt-file-row__name::after {
+  content: "Updated";
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 1px 8px;
+  background: #fff4e6;
+  color: #b85c00;
+  border: 1px solid #ffcc99;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  vertical-align: middle;
+}
+
+.ntt-file-row__date {
+  flex: 0 0 auto;
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+.ntt-file-row__download {
+  flex: 0 0 auto;
+  padding: 5px 12px;
+  background: #002855;
+  color: #ffffff;
+  border-radius: 4px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.ntt-file-row__download:hover {
+  background: #003a73;
+  color: #ffffff;
+}
+
+.ntt-file-row.is-updated .ntt-file-row__download {
+  background: #1a1a1a;
+}

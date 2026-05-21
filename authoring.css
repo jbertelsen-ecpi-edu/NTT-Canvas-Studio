@@ -1,0 +1,184 @@
+/*
+ * The context menu is a <dialog> opened via dialog.show() so it lives in the
+ * browser's top layer — above every stacking context including TinyMCE's
+ * fullscreen overlay. We strip the default dialog chrome and position it
+ * manually with style.left / style.top set in JS.
+ */
+#ntt-context-menu {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  z-index: 2147483647;
+  min-width: 210px;
+  padding: 6px;
+  border: 1px solid #c7cdd1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #222;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  font-family: Arial, sans-serif;
+}
+
+#ntt-context-menu:not([open]) {
+  display: none;
+}
+
+#ntt-context-menu::backdrop {
+  background: transparent;
+}
+
+.ntt-context-menu__title {
+  padding: 6px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #002855;
+  border-bottom: 1px solid #e5e5e5;
+  margin-bottom: 4px;
+}
+
+.ntt-context-menu__section + .ntt-context-menu__section {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid #e5e5e5;
+}
+
+.ntt-context-menu__section-label {
+  padding: 6px 8px 2px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+#ntt-context-menu button {
+  display: block;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #222;
+  text-align: left;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+#ntt-context-menu button:hover,
+#ntt-context-menu button:focus {
+  background: #eef5ff;
+  outline: none;
+}
+
+#ntt-context-menu button.is-danger {
+  color: #b00020;
+}
+
+#ntt-context-menu button.is-current {
+  font-weight: 700;
+  background: #eef5ff;
+}
+
+#ntt-context-menu button.is-current::before {
+  content: "✓ ";
+  color: #0b2f57;
+}
+
+.ntt-context-menu__divider {
+  height: 1px;
+  margin: 4px 0;
+  background: #e5e5e5;
+}
+
+/*
+ * Set Download Link modal.
+ */
+#ntt-link-dialog {
+  border: 1px solid #c7cdd1;
+  border-radius: 8px;
+  padding: 0;
+  background: #ffffff;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  max-width: 460px;
+  width: 90%;
+  font-family: Arial, sans-serif;
+}
+
+#ntt-link-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+#ntt-link-dialog form {
+  padding: 20px 22px;
+}
+
+.ntt-link-dialog__title {
+  margin: 0 0 6px 0;
+  font-size: 16px;
+  color: #002855;
+}
+
+.ntt-link-dialog__hint {
+  margin: 0 0 14px 0;
+  font-size: 13px;
+  color: #555;
+}
+
+.ntt-link-dialog__field {
+  display: block;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: #333;
+}
+
+.ntt-link-dialog__field span {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
+.ntt-link-dialog__field input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid #c7cdd1;
+  border-radius: 4px;
+  font: inherit;
+}
+
+.ntt-link-dialog__field input:focus {
+  outline: 2px solid #1976d2;
+  outline-offset: -1px;
+  border-color: #1976d2;
+}
+
+.ntt-link-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.ntt-link-dialog__actions button {
+  padding: 7px 14px;
+  border-radius: 4px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid #c7cdd1;
+  background: #ffffff;
+  color: #222;
+}
+
+.ntt-link-dialog__actions button[type="submit"] {
+  background: #002855;
+  border-color: #002855;
+  color: #ffffff;
+}
+
+.ntt-link-dialog__actions button[type="submit"]:hover {
+  background: #003a73;
+}
+
+.ntt-link-dialog__actions button[type="button"]:hover {
+  background: #f5f7fb;
+}

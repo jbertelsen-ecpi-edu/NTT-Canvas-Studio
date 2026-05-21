@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "NTT Canvas Editor Dev",
+  "version": "0.1.0",
+  "description": "Local development version of the NTT Canvas Editor.",
+  "host_permissions": [
+    "https://ntt.instructure.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://ntt.instructure.com/courses/*/pages/*"
+      ],
+      "exclude_matches": [
+        "https://ntt.instructure.com/courses/*/pages/*/edit*"
+      ],
+      "js": ["runtime.js"],
+      "css": ["runtime.css"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://ntt.instructure.com/courses/*/pages/*/edit*"
+      ],
+      "js": ["runtime.js", "authoring.js"],
+      "css": ["runtime.css", "authoring.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}
