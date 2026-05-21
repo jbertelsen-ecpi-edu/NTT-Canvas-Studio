@@ -241,6 +241,31 @@
   cursor: pointer;
 }
 
+.ntt-accordion-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem 0;
+}
+
+.ntt-accordion-toolbar button {
+  appearance: none;
+  border: 1px solid transparent;
+  background: #ffffff;
+  color: #002855;
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ntt-accordion-toolbar button:hover,
+.ntt-accordion-toolbar button:focus-visible {
+  background: #eef5ff;
+  outline: none;
+}
+
 .ntt-accordion-header:hover {
   background: #eef5ff;
 }
@@ -301,25 +326,58 @@
 
 .ntt-file-row__checkbox {
   flex: 0 0 auto;
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   margin: 0;
   cursor: pointer;
 }
 
 .ntt-file-row__icon {
   flex: 0 0 auto;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 36px;
   height: 36px;
-  border-radius: 6px;
+  border-radius: 8px;
   background: #eef0f3;
   color: #555;
-  text-align: center;
-  line-height: 36px;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.ntt-file-row__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 500;
+  color: #002855;
+}
+
+.ntt-file-row__download {
+  flex: 0 0 auto;
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 14px;
+  background: #002855;
+  color: #ffffff;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.ntt-file-row__download:hover {
+  background: #003a73;
+  color: #ffffff;
+}
+
+.ntt-file-row.is-updated .ntt-file-row__download {
+  background: #1a1a1a;
 }
 
 .ntt-file-row__icon[data-ext="pdf"]  { background: #fde8e7; color: #c0392b; }
@@ -362,24 +420,4 @@
   flex: 0 0 auto;
   color: #6b7280;
   font-size: 0.875rem;
-}
-
-.ntt-file-row__download {
-  flex: 0 0 auto;
-  padding: 5px 12px;
-  background: #002855;
-  color: #ffffff;
-  border-radius: 4px;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.ntt-file-row__download:hover {
-  background: #003a73;
-  color: #ffffff;
-}
-
-.ntt-file-row.is-updated .ntt-file-row__download {
-  background: #1a1a1a;
 }

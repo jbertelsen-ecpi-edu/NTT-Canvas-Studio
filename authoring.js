@@ -438,7 +438,7 @@
   function getFileRowHtml() {
     const uid = 'ntt-file-' + Date.now();
     const today = new Date().toISOString().slice(0, 10);
-    return `<div class="ntt-file-row" data-updated="${today}" data-ext="pdf"><input type="checkbox" class="ntt-file-row__checkbox" aria-labelledby="${uid}-name"><span class="ntt-file-row__icon"></span><span class="ntt-file-row__name" id="${uid}-name">File Name</span><span class="ntt-file-row__date">${today}</span><a class="ntt-file-row__download" href="#" title="File Name.pdf">Download</a></div>`;
+    return `<div class="ntt-file-row" data-updated="${today}" data-ext="pdf"><input type="checkbox" class="ntt-file-row__checkbox" aria-labelledby="${uid}-name"><span class="ntt-file-row__icon"></span><a class="ntt-file-row__name" id="${uid}-name" href="#" title="File Name.pdf">File Name</a><span class="ntt-file-row__date">${today}</span></div>`;
   }
 
   function getAccordionHtml() {
@@ -538,8 +538,12 @@
     const tab = target.closest('.ntt-tab');
     const tabsRoot = target.closest('.ntt-tabs');
     const accordionHeader = target.closest('.ntt-accordion-header');
-    const accordionItem = target.closest('.ntt-accordion-item');
-    const accordionRoot = target.closest('.ntt-accordion');
+    const accordionItem = accordionHeader
+      ? accordionHeader.closest('.ntt-accordion-item')
+      : target.closest('.ntt-accordion-item');
+    const accordionRoot = accordionHeader
+      ? accordionHeader.closest('.ntt-accordion')
+      : target.closest('.ntt-accordion');
 
     // Component "title bar" is a ::before pseudo-element on the component
     // root; right-clicks on a pseudo-element route to the host.
@@ -556,7 +560,7 @@
     const tabPanel = target.closest('.ntt-tab-panel');
     const accordionPanel = target.closest('.ntt-accordion-panel');
     const inTabPanel = Boolean(tabPanel);
-    const inAccordionPanel = Boolean(accordionPanel);
+    const inAccordionPanel = Boolean(accordionPanel) && !Boolean(accordionHeader);
     const inPanel = inTabPanel || inAccordionPanel;
     const fileRow = target.closest('.ntt-file-row');
 
@@ -685,20 +689,18 @@
   function openSetDownloadLinkDialog() {
     const row = contextTarget && contextTarget.fileRow;
     if (!row) return;
-    const link = row.querySelector('.ntt-file-row__download');
-    if (!link) return;
-    const nameEl = row.querySelector('.ntt-file-row__name');
+    const link = row.querySelector('.ntt-file-row__name');
+    if (!link || link.tagName !== 'A') return;
 
     showLinkDialog({
       url: link.getAttribute('href') === '#' ? '' : link.getAttribute('href') || '',
-      name: (nameEl && nameEl.textContent.trim()) || link.getAttribute('title') || '',
+      name: (link.textContent.trim()) || link.getAttribute('title') || '',
       onSubmit: function (values) {
         link.setAttribute('href', values.url);
         if (values.name) {
           link.setAttribute('title', values.name);
-          if (nameEl) nameEl.textContent = values.name;
+          link.textContent = values.name;
         }
-        // Re-read extension from the new URL/title so the icon updates.
         const ext = extractExtension(values.url, values.name);
         if (ext) row.setAttribute('data-ext', ext);
         notifyEditorChanged();
@@ -1173,8 +1175,15 @@
   }
 
   function insertAccordionItemRelative(position) {
-    const currentItem = contextTarget && contextTarget.accordionItem;
-    const accordionRoot = contextTarget && contextTarget.accordionRoot;
+    let currentItem = contextTarget && contextTarget.accordionItem;
+    const accordionHeader = contextTarget && contextTarget.accordionHeader;
+    let accordionRoot = contextTarget && contextTarget.accordionRoot;
+    if (!currentItem && accordionHeader) {
+      currentItem = accordionHeader.closest('.ntt-accordion-item');
+    }
+    if (!accordionRoot && currentItem) {
+      accordionRoot = currentItem.closest('.ntt-accordion');
+    }
     if (!currentItem || !accordionRoot) return;
 
     const doc = getContextDoc();
