@@ -31,11 +31,9 @@ runtime, both copies are present. They run in different JS realms (the
 extension's content script is an isolated world; the Theme upload runs in the
 page's main world) that share the DOM but not `window`, so dedupe uses a
 **shared-DOM marker**: the first copy to run sets `data-ntt-runtime` on
-`<html>`; any later copy bails.
-
-The extension's view-page script runs at `document_start` (see `manifest.json`)
-so on a developer's machine the in-development copy claims the page *before*
-the Theme copy and always wins. Students (no extension) just run the Theme copy.
+`<html>` (at DOM-ready, via `claimPage()`); any later copy bails. This prevents
+double-decoration when a developer with the extension views a page that also
+carries the Theme copy. Students (no extension) just run the Theme copy.
 
 `runtime.css` is fully `.ntt-*`-scoped, so loading it account-wide has no
 effect on pages without NTT components.

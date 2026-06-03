@@ -3,22 +3,9 @@
 
   var VERSION = '0.1.0';
 
-  // Cross-realm dedupe guard.
-  //
-  // This exact file runs in two places that share a DOM but NOT window
-  // globals: the browser extension injects it into an isolated content-script
-  // world, while the Canvas Theme upload runs it in the page's main world. A
-  // `window.*` flag therefore can't coordinate them — both copies would run
-  // and decorate the page twice. Instead we claim a marker attribute on the
-  // shared <html> element; the first copy to run wins and any later copy bails.
-  //
-  // The extension's view-page content script runs at document_start (see
-  // manifest.json), so on a developer's machine the in-development extension
-  // copy claims the page before the Theme copy and always wins. Students have
-  // no extension, so only the Theme copy runs for them.
-  var docEl = document.documentElement;
-  if (docEl.hasAttribute('data-ntt-runtime')) return;
-  docEl.setAttribute('data-ntt-runtime', VERSION);
+  // Cross-realm dedupe guard. See claimPage() near the bottom — the claim is
+  // made at DOM-ready (not at module top), so it is robust regardless of when
+  // this file is injected/executed.
 
   // ---------------------------------------------------------------------------
   // Tabs
@@ -529,13 +516,29 @@
     document.querySelectorAll('.ntt-accordion').forEach(createAccordionToolbar);
   }
 
-  // Init once the DOM is parsed. The marker is claimed synchronously above
-  // (so a competing copy bails immediately), but decoration must wait for the
-  // component markup to exist — necessary now that the view-page content
-  // script runs at document_start.
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initAllComponents);
-  } else {
+  // Claim the page via a marker on the shared <html> element. The extension
+  // (isolated content-script world) and the Canvas Theme upload (page main
+  // world) share the DOM but not window globals, so a DOM attribute is what
+  // lets them coordinate: the first copy to claim wins, any later copy bails.
+  // This prevents double-decoration when a developer with the extension views
+  // a page that also carries the Theme copy. (Students have no extension, so
+  // only the Theme copy runs for them.)
+  function claimPage() {
+    var docEl = document.documentElement;
+    if (docEl.hasAttribute('data-ntt-runtime')) return false;
+    docEl.setAttribute('data-ntt-runtime', VERSION);
+    return true;
+  }
+
+  function boot() {
+    if (!claimPage()) return;
     initAllComponents();
+  }
+
+  // Decoration must wait for the component markup to exist.
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
   }
 })();
