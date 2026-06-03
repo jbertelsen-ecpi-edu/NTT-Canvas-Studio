@@ -1,0 +1,155 @@
+/* NTT Canvas Editor — extension popup panel.
+   Palette mirrors runtime.css: navy #002855, light hover #eef5ff. */
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: #002855;
+}
+
+.ntt-popup {
+  width: 290px;
+  padding: 0.9rem 1rem 0.75rem;
+}
+
+.ntt-popup__header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.ntt-popup__logo {
+  width: 24px;
+  height: 24px;
+  flex: none;
+}
+
+.ntt-popup__title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.ntt-popup__status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: 6px;
+  background: #f4f7fb;
+  font-size: 0.8rem;
+  margin-bottom: 0.85rem;
+}
+
+.ntt-popup__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+  background: #9aa7b8;
+}
+
+.ntt-popup__dot--on { background: #2e9b51; }
+.ntt-popup__dot--idle { background: #e8920b; }
+.ntt-popup__dot--off { background: #c0392b; }
+.ntt-popup__dot--unknown { background: #9aa7b8; }
+
+.ntt-popup__update {
+  border: 1px solid #f0c36d;
+  border-left: 4px solid #e8920b;
+  border-radius: 6px;
+  background: #fff8ec;
+  color: #5a3b00;
+  padding: 0.6rem 0.7rem;
+  margin-bottom: 0.85rem;
+}
+
+.ntt-popup__update-text {
+  margin: 0 0 0.5rem;
+  font-size: 0.82rem;
+}
+
+.ntt-popup__button--update {
+  border-color: #e8920b;
+  background: #e8920b;
+}
+
+.ntt-popup__button--update:hover:not(:disabled) {
+  background: #cf7f06;
+}
+
+.ntt-popup__toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  padding: 0.6rem;
+  border: 1px solid #d6e0ee;
+  border-radius: 6px;
+  cursor: pointer;
+  margin-bottom: 0.85rem;
+}
+
+.ntt-popup__toggle:hover {
+  background: #eef5ff;
+}
+
+.ntt-popup__toggle input {
+  margin-top: 0.15rem;
+  flex: none;
+}
+
+.ntt-popup__toggle-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.ntt-popup__toggle-title {
+  font-size: 0.83rem;
+  font-weight: 600;
+}
+
+.ntt-popup__toggle-hint {
+  font-size: 0.74rem;
+  line-height: 1.35;
+  color: #4a5a70;
+}
+
+.ntt-popup__button {
+  width: 100%;
+  appearance: none;
+  border: 1px solid #002855;
+  background: #002855;
+  color: #ffffff;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.83rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ntt-popup__button:hover:not(:disabled) {
+  background: #013a78;
+}
+
+.ntt-popup__button:disabled {
+  background: #c6cfdb;
+  border-color: #c6cfdb;
+  cursor: default;
+}
+
+.ntt-popup__note {
+  margin: 0.4rem 0 0;
+  font-size: 0.72rem;
+  color: #4a5a70;
+}
+
+.ntt-popup__footer {
+  margin-top: 0.85rem;
+  text-align: right;
+  font-size: 0.7rem;
+  color: #8290a3;
+}

@@ -266,6 +266,56 @@
   outline: none;
 }
 
+.ntt-download-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  margin: 0.6rem 1rem 0;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid #f0c36d;
+  border-left: 4px solid #e8920b;
+  border-radius: 6px;
+  background: #fff8ec;
+  color: #5a3b00;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.ntt-download-hint__arrow {
+  flex: none;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #e8920b;
+  line-height: 1.3;
+}
+
+.ntt-download-hint__text {
+  flex: 1 1 auto;
+}
+
+.ntt-download-hint__text strong {
+  color: #5a3b00;
+}
+
+.ntt-download-hint__dismiss {
+  flex: none;
+  appearance: none;
+  border: 1px solid #e8920b;
+  background: #ffffff;
+  color: #5a3b00;
+  padding: 0.3rem 0.7rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ntt-download-hint__dismiss:hover,
+.ntt-download-hint__dismiss:focus-visible {
+  background: #fdebcb;
+  outline: none;
+}
+
 .ntt-accordion-header:hover {
   background: #eef5ff;
 }

@@ -1,7 +1,24 @@
 (function () {
   'use strict';
 
-  var VERSION = '0.1.0';
+  var VERSION = '0.3.0';
+
+  // True only in the browser-extension copy (content script). The Canvas Theme
+  // copy runs in the page's main world where `chrome.runtime.id` is undefined.
+  // This lets the extension copy behave differently — notably, take priority
+  // over a stale theme copy when the user opts in via the popup.
+  var IS_EXTENSION = (function () {
+    try { return typeof chrome !== 'undefined' && !!(chrome.runtime && chrome.runtime.id); }
+    catch (e) { return false; }
+  })();
+
+  // When true (extension only, set from the popup's stored toggle), the
+  // extension re-owns the accordion toolbar even if a different copy built one.
+  var extPriority = false;
+
+  // One-shot guard so entering edit mode triggers a single update check per page
+  // load (runInit re-runs via the observer). See maybeCheckForUpdate().
+  var updateCheckRequested = false;
 
   // Dedupe + timing strategy: this file is loaded by BOTH the browser
   // extension (isolated content-script world) and the Canvas Theme upload
@@ -439,7 +456,21 @@
 
   function createAccordionToolbar(root) {
     if (isAuthoringMode() || !root) return;
-    if (root.querySelector('.ntt-accordion-toolbar')) return;
+
+    // Normally the first copy to build a toolbar wins and the other defers here.
+    // In extension-priority mode, the extension instead replaces any toolbar it
+    // didn't build (e.g. a stale theme copy's), then keeps its own — the source
+    // stamp prevents an observer loop, and the theme copy defers to ours.
+    var existingToolbar = root.querySelector('.ntt-accordion-toolbar');
+    if (existingToolbar) {
+      if (!(IS_EXTENSION && extPriority) ||
+          existingToolbar.getAttribute('data-ntt-source') === 'extension') {
+        return;
+      }
+      existingToolbar.remove();
+      var staleHint = root.querySelector('.ntt-download-hint');
+      if (staleHint && staleHint.parentNode) staleHint.parentNode.removeChild(staleHint);
+    }
 
     const fileRows = Array.from(root.querySelectorAll('.ntt-file-row'));
     if (!fileRows.length) return;
@@ -447,6 +478,9 @@
     const doc = root.ownerDocument;
     const toolbar = doc.createElement('div');
     toolbar.className = 'ntt-accordion-toolbar';
+    // Stamp which copy owns this toolbar so priority mode can tell its own
+    // toolbar from a stale one (see the guard above).
+    toolbar.setAttribute('data-ntt-source', IS_EXTENSION ? 'extension' : 'theme');
 
     const selectAll = doc.createElement('button');
     selectAll.type = 'button';
@@ -466,6 +500,38 @@
     const title = root.querySelector('.ntt-component-title');
     const insertBefore = title ? title.nextSibling : root.firstChild;
     root.insertBefore(toolbar, insertBefore);
+
+    // Browsers block multiple programmatic downloads as pop-ups/redirects, and
+    // the only signal is a tiny icon in the address bar that instructors miss.
+    // We can't detect or bypass the block from JS, so when a multi-file
+    // download is triggered we surface a clear, dismissible hint pointing them
+    // to that icon. Dismissal is remembered so it stops nagging once understood.
+    const POPUP_HINT_KEY = 'nttDownloadPopupHintDismissed';
+    const popupHintDismissed = function () {
+      try { return window.localStorage.getItem(POPUP_HINT_KEY) === '1'; }
+      catch (e) { return false; }
+    };
+
+    const hint = doc.createElement('div');
+    hint.className = 'ntt-download-hint';
+    hint.setAttribute('role', 'status');
+    hint.hidden = true;
+    hint.innerHTML =
+      '<span class="ntt-download-hint__arrow" aria-hidden="true">↗</span>' +
+      '<span class="ntt-download-hint__text">' +
+        '<strong>Only one file downloaded?</strong> Your browser blocked the rest. ' +
+        'Click the blocked-content icon near the top of the address bar (shown above), ' +
+        'choose <em>Always allow pop-ups and redirects from this site</em>, then click ' +
+        '<strong>Download Selected</strong> again.' +
+      '</span>' +
+      '<button type="button" class="ntt-download-hint__dismiss" ' +
+        'aria-label="Dismiss this message and don\'t show it again">Got it</button>';
+    root.insertBefore(hint, toolbar.nextSibling);
+
+    hint.querySelector('.ntt-download-hint__dismiss').addEventListener('click', function () {
+      hint.hidden = true;
+      try { window.localStorage.setItem(POPUP_HINT_KEY, '1'); } catch (e) {}
+    });
 
     const updateDownloadSelectedState = function () {
       const hasSelected = Array.from(root.querySelectorAll('.ntt-file-row__checkbox')).some(function (checkbox) {
@@ -498,18 +564,40 @@
         const checkbox = row.querySelector('.ntt-file-row__checkbox');
         return checkbox && checkbox.checked;
       });
-      selectedRows.forEach(function (row) {
-        const link = row.querySelector('.ntt-file-row__download');
-        if (!link || !link.href) return;
-        const anchor = doc.createElement('a');
-        anchor.href = link.href;
-        anchor.target = '_blank';
-        anchor.rel = 'noopener noreferrer';
-        anchor.style.display = 'none';
-        doc.body.appendChild(anchor);
-        anchor.click();
-        doc.body.removeChild(anchor);
+      const hrefs = selectedRows
+        .map(function (row) {
+          const link = row.querySelector('.ntt-file-row__download');
+          return link && link.href ? link.href : null;
+        })
+        .filter(Boolean);
+
+      // Drive each download through a hidden iframe rather than an anchor click.
+      // Canvas file URLs 302-redirect to a cross-origin storage host, which the
+      // anchor/target approaches expose as a top-level redirect — Chrome's
+      // "pop-ups and redirects" blocker then suppresses all but the first file.
+      // An iframe consumes the Content-Disposition: attachment response as a
+      // download without any top-level navigation, so the blocker never fires.
+      // A small stagger keeps the browser from coalescing/dropping rapid loads.
+      hrefs.forEach(function (href, index) {
+        setTimeout(function () {
+          const frame = doc.createElement('iframe');
+          frame.style.display = 'none';
+          frame.src = href;
+          doc.body.appendChild(frame);
+          // The download is handed to the browser as soon as the response
+          // headers arrive; the iframe itself is no longer needed afterward.
+          setTimeout(function () {
+            if (frame.parentNode) frame.parentNode.removeChild(frame);
+          }, 60000);
+        }, index * 300);
       });
+
+      // The first file always gets through; any extras are what the browser
+      // may suppress. Show the hint (unless already dismissed) so a blocked
+      // batch isn't silently reduced to a single file.
+      if (hrefs.length > 1 && !popupHintDismissed()) {
+        hint.hidden = false;
+      }
     });
   }
 
@@ -546,6 +634,22 @@
       // Never let one failure wedge the page or stop the observer.
       if (window.console && console.error) console.error('[NTT] init error', err);
     }
+    maybeCheckForUpdate();
+  }
+
+  // Entering Canvas edit mode is the moment an author is actively working — a
+  // good, traffic-free trigger to ask the background worker whether a newer
+  // extension zip has been uploaded to SharePoint. Content scripts can't fetch
+  // SharePoint cross-origin, so we just message the worker (it does the fetch).
+  // Extension-only, and once per page load.
+  function maybeCheckForUpdate() {
+    if (updateCheckRequested || !IS_EXTENSION || !isAuthoringMode()) return;
+    updateCheckRequested = true;
+    try {
+      chrome.runtime.sendMessage({ type: 'CHECK_UPDATE' });
+    } catch (e) {
+      // Service worker asleep or context gone — harmless; next page load retries.
+    }
   }
 
   // Canvas renders wiki-page content via JS, so the component markup can appear
@@ -567,7 +671,40 @@
     observer.observe(document.documentElement, { childList: true, subtree: true });
   }
 
+  // Extension-only bridge to the popup: read the priority toggle, react when it
+  // changes, and answer status queries. The Canvas Theme copy has no `chrome`,
+  // so this whole block is a no-op there.
+  function setupExtensionBridge() {
+    if (!IS_EXTENSION) return;
+    try {
+      chrome.storage.local.get('nttExtensionPriority', function (res) {
+        extPriority = !!(res && res.nttExtensionPriority);
+        // Re-run so we take over the toolbar now that the (async) flag is known.
+        if (extPriority) runInit();
+      });
+      chrome.storage.onChanged.addListener(function (changes, area) {
+        if (area !== 'local' || !changes.nttExtensionPriority) return;
+        extPriority = !!changes.nttExtensionPriority.newValue;
+        // Turning it ON takes over live; turning it OFF applies on next reload.
+        if (extPriority) runInit();
+      });
+      chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
+        if (msg && msg.type === 'NTT_STATUS') {
+          sendResponse({
+            version: VERSION,
+            isExtension: true,
+            overriding: extPriority
+          });
+        }
+        return true;
+      });
+    } catch (e) {
+      if (window.console && console.error) console.error('[NTT] extension bridge error', e);
+    }
+  }
+
   // Run now, again at the usual lifecycle points, and whenever the DOM changes.
+  setupExtensionBridge();
   runInit();
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', runInit);

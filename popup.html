@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NTT Canvas Editor</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="ntt-popup">
+    <header class="ntt-popup__header">
+      <img class="ntt-popup__logo" src="icons/icon32.png" alt="">
+      <h1 class="ntt-popup__title">NTT Canvas Editor</h1>
+    </header>
+
+    <section class="ntt-popup__status">
+      <span class="ntt-popup__dot ntt-popup__dot--unknown" id="statusDot"></span>
+      <span class="ntt-popup__status-text" id="statusText">Checking this page&hellip;</span>
+    </section>
+
+    <section class="ntt-popup__update" id="updateBanner" hidden>
+      <p class="ntt-popup__update-text">
+        <strong>Update available</strong> &mdash; <span id="updateVersion"></span>
+      </p>
+      <button type="button" class="ntt-popup__button ntt-popup__button--update" id="updateBtn">Get the new version</button>
+    </section>
+
+    <label class="ntt-popup__toggle">
+      <input type="checkbox" id="priorityToggle">
+      <span class="ntt-popup__toggle-body">
+        <span class="ntt-popup__toggle-title">Run extension code only</span>
+        <span class="ntt-popup__toggle-hint">Override the Canvas theme on this site so you can test the extension without uploading. Reload the page after changing.</span>
+      </span>
+    </label>
+
+    <button type="button" class="ntt-popup__button" id="featureBtn">Submit a feature request</button>
+    <p class="ntt-popup__note" id="featureNote" hidden>Feature-request list isn&rsquo;t set up yet.</p>
+
+    <footer class="ntt-popup__footer">
+      <span id="extVersion"></span>
+    </footer>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
