@@ -415,7 +415,7 @@
   function getTabsHtml() {
     const uid = 'ntt-tabs-' + Date.now();
     return `
-<div class="ntt-tabs">
+<div class="ntt-component ntt-tabs">
   <h3 class="ntt-component-title">Tabs Title</h3>
   <div class="ntt-tabs-list" role="tablist" aria-label="Course content tabs">
     <a class="ntt-tab is-active" href="#${uid}-panel-1" role="tab" aria-selected="true" tabindex="0" aria-controls="${uid}-panel-1" id="${uid}-tab-1">Overview</a>
@@ -444,7 +444,7 @@
   function getAccordionHtml() {
     const uid = 'ntt-accordion-' + Date.now();
     return `
-<div class="ntt-accordion">
+<div class="ntt-component ntt-accordion">
   <h3 class="ntt-component-title">Accordion Title</h3>
   <div class="ntt-accordion-item is-open">
     <a class="ntt-accordion-header" href="#${uid}-panel-1" role="button" aria-expanded="true" aria-controls="${uid}-panel-1" id="${uid}-header-1">Section 1</a>
@@ -559,12 +559,22 @@
     // them every time they edit panel content.
     const tabPanel = target.closest('.ntt-tab-panel');
     const accordionPanel = target.closest('.ntt-accordion-panel');
-    const inTabPanel = Boolean(tabPanel);
+
+    // Components can nest (e.g. an accordion inside a tab panel). When the
+    // accordion lives inside this tab panel, a click on the accordion — its
+    // header or its own content — targets the accordion (the inner
+    // component), not the enclosing tab panel.
+    const accordionInsideTabPanel = Boolean(
+      accordionRoot && tabPanel && tabPanel.contains(accordionRoot)
+    );
+
+    const inTabPanel = Boolean(tabPanel) && !accordionInsideTabPanel;
     const inAccordionPanel = Boolean(accordionPanel) && !Boolean(accordionHeader);
     const inPanel = inTabPanel || inAccordionPanel;
     const fileRow = target.closest('.ntt-file-row');
 
-    const ctxTabsRoot = inPanel ? null : tabsRoot;
+    // A nested accordion is the active component, so ignore the outer tabs.
+    const ctxTabsRoot = (inPanel || accordionInsideTabPanel) ? null : tabsRoot;
     const ctxAccordionRoot = inPanel ? null : accordionRoot;
     const ctxAccordionItem = inPanel ? null : accordionItem;
     const nttComponent = ctxTabsRoot || ctxAccordionRoot;
@@ -1224,7 +1234,11 @@
   function deleteCurrentAccordionItem() {
     const currentItem = contextTarget && contextTarget.accordionItem;
     const accordionRoot = contextTarget && contextTarget.accordionRoot;
-    if (!currentItem || !accordionRoot) return;
+
+    if (!currentItem || !accordionRoot) {
+      alert('Could not delete accordion item. Please try again.');
+      return;
+    }
 
     const items = Array.from(accordionRoot.querySelectorAll('.ntt-accordion-item'));
     if (items.length <= 1) {

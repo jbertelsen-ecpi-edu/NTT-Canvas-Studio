@@ -1,8 +1,24 @@
 (function () {
   'use strict';
 
-  if (window.NTTCanvasRuntimeLoaded) return;
-  window.NTTCanvasRuntimeLoaded = true;
+  var VERSION = '0.1.0';
+
+  // Cross-realm dedupe guard.
+  //
+  // This exact file runs in two places that share a DOM but NOT window
+  // globals: the browser extension injects it into an isolated content-script
+  // world, while the Canvas Theme upload runs it in the page's main world. A
+  // `window.*` flag therefore can't coordinate them — both copies would run
+  // and decorate the page twice. Instead we claim a marker attribute on the
+  // shared <html> element; the first copy to run wins and any later copy bails.
+  //
+  // The extension's view-page content script runs at document_start (see
+  // manifest.json), so on a developer's machine the in-development extension
+  // copy claims the page before the Theme copy and always wins. Students have
+  // no extension, so only the Theme copy runs for them.
+  var docEl = document.documentElement;
+  if (docEl.hasAttribute('data-ntt-runtime')) return;
+  docEl.setAttribute('data-ntt-runtime', VERSION);
 
   // ---------------------------------------------------------------------------
   // Tabs
@@ -375,76 +391,43 @@
     return 'Download';
   }
 
-  function isDownloadLink(link) {
-    if (!link || link.tagName !== 'A') return false;
-    const text = (link.textContent || '').trim();
-    return /^download$/i.test(text) && link.hasAttribute('href');
+  // A plain link inside an NTT component that points at a Canvas file
+  // (…/files/<id>) is an authored file download. We don't require any special
+  // link text — the author's visible text is what they want shown. The
+  // .ntt-component scope guarantees we never rewrite links elsewhere on the
+  // page that aren't part of one of our components.
+  function isFileDownloadLink(link) {
+    if (!link || link.tagName !== 'A' || !link.hasAttribute('href')) return false;
+    if (!(link.textContent || '').trim()) return false;
+    if (link.closest('.ntt-file-row')) return false;
+    if (!link.closest('.ntt-component')) return false;
+    try {
+      const url = new URL(link.getAttribute('href'), window.location.href);
+      return /\/files\/\d+(?:\/download)?$/.test(url.pathname);
+    } catch (error) {
+      return false;
+    }
   }
 
-  function convertDownloadLinkToFileRow(link) {
-    if (!link || !isDownloadLink(link)) return null;
-    if (link.closest('.ntt-file-row')) return null;
-
+  // Wrap the link in a bare .ntt-file-row and let decorateFileRow() build the
+  // checkbox, icon, date, and Download button. In player mode it preserves the
+  // link's visible text as the (plain, unlinked) file name and strips the
+  // inline link — exactly the desired transform.
+  function wrapFileLinkInRow(link) {
+    if (!isFileDownloadLink(link)) return null;
     const doc = link.ownerDocument;
-    const uid = 'ntt-file-' + Date.now() + '-' + Math.floor(Math.random() * 10000);
     const row = doc.createElement('div');
     row.className = 'ntt-file-row';
     row.setAttribute('data-updated', new Date().toISOString().slice(0, 10));
-
-    const name = extractFileNameFromLink(link);
-    const ext = (name.match(/\.([a-z0-9]+)$/i) || [])[1] ||
-      ((link.href || '').split('?')[0].split('#')[0].match(/\.([a-z0-9]+)$/i) || [])[1] ||
-      'file';
-    row.setAttribute('data-ext', ext.toLowerCase());
-
-    const checkbox = doc.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.className = 'ntt-file-row__checkbox';
-    checkbox.setAttribute('aria-labelledby', uid + '-name');
-
-    const icon = doc.createElement('span');
-    icon.className = 'ntt-file-row__icon';
-    icon.setAttribute('data-ext', ext.toLowerCase());
-    icon.textContent = ext.toUpperCase();
-
-    const nameEl = doc.createElement('span');
-    nameEl.className = 'ntt-file-row__name';
-    nameEl.id = uid + '-name';
-    nameEl.textContent = name;
-
-    const dateEl = doc.createElement('span');
-    dateEl.className = 'ntt-file-row__date';
-    dateEl.textContent = new Date().toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-
-    const button = doc.createElement('a');
-    button.className = 'ntt-file-row__download';
-    button.href = link.href;
-    if (link.target) button.target = link.target;
-    if (link.rel) button.rel = link.rel;
-    if (link.title) button.title = link.title;
-    button.textContent = link.textContent.trim();
-
-    row.appendChild(checkbox);
-    row.appendChild(icon);
-    row.appendChild(nameEl);
-    row.appendChild(dateEl);
-    row.appendChild(button);
-
+    row.setAttribute('data-ext', inferExtensionFromLink(link));
     link.replaceWith(row);
+    row.appendChild(link);
     return row;
   }
 
-  function convertInlineDownloadLinks() {
-    const links = Array.from(document.querySelectorAll('a[href]'));
-    links.forEach(function (link) {
-      if (isDownloadLink(link)) {
-        convertDownloadLinkToFileRow(link);
-      }
-    });
+  function convertInlineFileLinks() {
+    Array.from(document.querySelectorAll('.ntt-component a[href]'))
+      .forEach(wrapFileLinkInRow);
   }
 
   function createAccordionToolbar(root) {
@@ -529,14 +512,30 @@
   // ---------------------------------------------------------------------------
 
   function initAllComponents() {
+    // Tag every component root with the canonical marker class. This is the
+    // single signal used to scope behaviors like link conversion, and it
+    // self-heals pages authored before .ntt-component existed.
+    document.querySelectorAll('.ntt-tabs, .ntt-accordion').forEach(function (root) {
+      root.classList.add('ntt-component');
+    });
+    // Convert authored file links into rows first, so the accordion's
+    // auto-open (which looks for .ntt-file-row) sees them.
+    if (!isAuthoringMode()) {
+      convertInlineFileLinks();
+    }
     document.querySelectorAll('.ntt-tabs').forEach(initTabs);
     document.querySelectorAll('.ntt-accordion').forEach(initAccordion);
-    if (!isAuthoringMode()) {
-      convertInlineDownloadLinks();
-    }
     document.querySelectorAll('.ntt-file-row').forEach(decorateFileRow);
     document.querySelectorAll('.ntt-accordion').forEach(createAccordionToolbar);
   }
 
-  initAllComponents();
+  // Init once the DOM is parsed. The marker is claimed synchronously above
+  // (so a competing copy bails immediately), but decoration must wait for the
+  // component markup to exist — necessary now that the view-page content
+  // script runs at document_start.
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initAllComponents);
+  } else {
+    initAllComponents();
+  }
 })();

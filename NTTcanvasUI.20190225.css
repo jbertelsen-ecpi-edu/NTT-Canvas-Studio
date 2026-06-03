@@ -1,0 +1,818 @@
+/**
+ *   NTT Canvas CSS
+ *
+ *   Created: 02/25/19
+ *   Modified: 12/10/2018
+ *
+ *   Change Log
+ *   ----------
+	02/25/19
+		Initial Set Up with Chris Esbrandt
+*/
+
+/**************
+* Canvas Page *
+**************/
+
+/* Begin Removed 12/9/2016 */
+/*#content-wrapper {
+	max-width: 1100px;
+}*/
+/* End Removed 12/9/2016 */
+
+/* Syllabus List */
+#syllabus thead th {
+	background-color: #444444;
+	color: #ffffff;
+}
+
+#syllabus tr.date th {
+	vertical-align: top;
+	padding: 10px;
+}
+
+/* Secondary Navbar */
+#left-side {
+	border-right: 1px solid #d6d6d6;
+}
+
+.list-view > ul > li > a, .list-view > nav > ul > li > a {
+	padding: 5.5px 8px;
+}
+
+/* Tertiary Navbar */
+.ic-app-main-content__secondary {
+	-webkit-flex: 0 0 350px;
+	-ms-flex: 0 0 350px;
+	flex: 0 0 350px;
+}
+
+/* TinyMCE Status Overflow */
+.mce-statusbar .mce-container-body {
+	overflow: hidden;
+}
+
+
+/********
+* Files *
+********/
+/* Begin Added 11/23/2018 */
+.ef-directory > div {
+	height: 100%;
+}
+/* End Added 11/23/2018 */
+
+
+/* make two exceptions so that the image doesn't show up within speedgrader */
+body.no-headers.grades, body.no-headers.quizzes-speedgrader {
+	background-image: none;
+}
+
+/* Calendar Styling */
+/*******************************
+* Cooler gray requested        *
+*                              *
+* Used half-way shade between: *
+*                              *
+*    Manatee: #8c92ac          *
+*    Iron: #e6e7e9             *
+*******************************/
+/*
+.mini_calendar {
+	background-color: #dadee9;
+}
+
+.mini_calendar .day.has_event {
+	background-color: #cccce9;
+}*/
+
+/********************************************************
+* .today shaded to 20% lighter then ECPI blue (#0d4ba0) *
+********************************************************/
+/*
+.mini_calendar .day.today {
+	background-color: #73b1ff;
+}
+
+#right-side table.summary td, #right-side table.summary tbody th {
+	background-color: #dadee8;
+}
+*/
+
+/**************
+* SpeedGrader *
+**************/
+
+#gradebook_header_container {
+	position: absolute;
+	top: 0;
+	right: 0;
+	left: 0;
+}
+
+#gradebook_header_container #gradebook_header .right .support_url, #gradebook_header_container #gradebook_header .right .support_url .menu-item__text {
+	display: inline;
+	font-size: inherit;
+}
+
+#gradebook_header_container #gradebook_header .right .support_url .menu-item-icon-container {
+	display: none;
+}
+
+
+/****************
+* Syllabus Page *
+****************/
+#syllabus tr.date td, #syllabus tr.date th {
+	vertical-align: top;
+}
+
+#syllabus tr.date table.detail_list tr.syllabus_assignment .name a, #right-side table.summary tbody th {
+	font-weight: normal;
+}
+
+/***************
+* Modules List *
+***************/
+.context_module_item.context_module_sub_header.ContextModuleSubHeader_0 .ig-row .ig-title .item_name .title {
+	color: #000000;
+}
+
+/* Begin Added 8/26/2016 */
+.context_module_item.context_module_sub_header .locked_title {
+	font-weight: bold;
+}
+/* End Added 8/26/2016 */
+
+/* Begin Removed 9/22/2016 */
+/* Begin Added 9/14/2016 */
+/*.ig-details {
+	display: none;
+}*/
+/* End Added 9/14/2016 */
+/* End Removed 9/22/2016 */
+
+.ig-details .col-md-3 {
+	max-width: 30%;
+}
+
+.ig-details .modules, .ig-details .assignment-date-available {
+	display: none;
+}
+
+.ig-title {
+	-webkit-flex: 0 0 60%;
+	-ms-flex: 0 0 60%;
+	flex: 0 0 60%;
+}
+
+@media only screen and (min-width: 992px) {
+	.ig-title {
+		-webkit-flex: 0 0 60%;
+		-ms-flex: 0 0 60%;
+		flex: 0 0 60%;
+	}
+}
+
+@media only screen and (min-width: 1040px) {
+	.ig-title {
+		-webkit-flex: 0 0 60%;
+		-ms-flex: 0 0 60%;
+		flex: 0 0 60%;
+	}
+}
+
+@media only screen and (min-width: 1200px) {
+	.ig-title {
+		-webkit-flex: 0 0 60%;
+		-ms-flex: 0 0 60%;
+		flex: 0 0 60%;
+	}
+}
+
+/*********************
+* Embedded URL Pages *
+*********************/
+.ui-listview li, .ui-listview li .ui-listview-text {
+	background: none;
+}
+
+.ui-listview li:hover {
+	background: none;
+}
+
+/* Begin Added 11/29/2016 */
+/**************************
+* Submission Details Page *
+**************************/
+.submission-details-comments .comment_list {
+	max-width: 680px;
+}
+
+.comment {
+	word-wrap: break-word;
+}
+
+.file-upload-submission-turnitin {
+	display: none;
+}
+/* End Added 11/29/2016 */
+
+/* Begin Added 8/24/2018 */
+/**********
+* Rubrics *
+**********/
+/* Begin Removed 10/22/2018 */
+/*.react-rubric {
+	min-width: auto !important;
+}*/
+/* End Removed 10/22/2018 */
+
+#rubric_full_resizer {
+	display: none;
+}
+/* End Added 8/24/2018 */
+
+/********************************************************************************
+*********************************************************************************
+*********************************************************************************
+*** Original CSS applied to the Canvas Pilots (201501 and 201504) for content ***
+*********************************************************************************
+*********************************************************************************
+********************************************************************************/
+
+/**************************************
+* ECPI University Styling Adapted for *
+* use within the #container_div only! *
+**************************************/
+
+/* Restore original font-sizes to ECPI content */
+#content_div, #unitHomepage {
+	font-size: 13px;
+}
+
+/***********************************************************
+* Standard HTML, Assignments, Discussions, and Quizzes CSS *
+************************************************************
+* Older Moodle templates whose use of tables to define a   *
+* width via                                                *
+*                                                          *
+*   style="width: 619px;"                                  *
+*   -or-                                                   *
+*   width="619"                                            *
+*                                                          *
+* is compensated for in addition to older classes such as  *
+*                                                          *
+*   .Titles                                                *
+*   .SubTitle                                              *
+*                                                          *
+***********************************************************/
+
+#container_div, #container_div div, #container_div dl, #container_div dt, #container_div dd, #container_div ul, #container_div ol, #container_div li, #container_div h1, #container_div h2, #container_div h3, #container_div h4, #container_div h5, #container_div h6, #container_div pre, #container_div code, #container_div form, #container_div fieldset, #container_div legend, #container_div input, #container_div textarea, #container_div p, #container_div blockquote, #container_div table, #container_div th, #container_div td {
+	margin: 0;
+	padding: 0;
+	line-height: 1.4;
+	font-family: Arial, Helvetica, sans-serif;
+/* Begin Removed 11/23/2018 */
+/*	font-size: 10pt;*/
+/* End Removed 11/23/2018 */
+	color: #000000;
+}
+
+#container_div p, #container_div fieldset, #container_div table, #container_div pre {
+	margin-bottom: 1em;
+}
+
+#container_div th, #container_div td, #container_div a img {
+	border-width: 0;
+}
+
+/*#container_div {
+	max-width: 620px;
+}*/
+
+#container_div p, .user_content #container_div table td p {
+	text-align: left;
+	margin: 0 0 1em;
+}
+
+#container_div ol, #container_div ul, #container_div dl {
+	margin: 1em;
+	margin-left: 2em;
+}
+
+#container_div ol:not([type]) {
+	list-style: decimal outside;
+	list-style-type: decimal;
+}
+
+#container_div ol ol:not([type]) {
+	list-style: lower-alpha outside;
+	list-style-type: lower-alpha;
+}
+
+#container_div ol ol ol:not([type]) {
+	list-style: lower-roman outside;
+	list-style-type: lower-roman;
+}
+
+#container_div ol ol ol ol:not([type]) {
+	list-style: upper-alpha outside;
+	list-style-type: upper-alpha;
+}
+
+#container_div ol ol ol ol ol:not([type]) {
+	list-style: upper-roman outside;
+	list-style-type: upper-roman;
+}
+
+#container_div ul:not([type]) {
+	list-style: disc outside;
+	list-style-type: disc;
+}
+
+#container_div ul ul:not([type]) {
+	list-style: circle outside;
+	list-style-type: circle;
+}
+
+
+#container_div ul ul ul:not([type]) {
+	list-style: square outside;
+	list-style-type: square;
+}
+
+#container_div table {
+	border-collapse: collapse;
+	border-spacing: 0;
+	margin: 10px;
+}
+
+#container_div table[border='1'] th, #container_div table[border='1'] td {
+	border: 1px solid #000000;
+	border-collapse: collapse;
+}
+
+#container_div th, #container_div td {
+/*	border: 1px solid #000000;*/
+	padding: .5em;
+}
+
+#container_div th {
+	font-weight: bold;
+	text-align: center;
+}
+
+#container_div img {
+	border: 0;
+	margin: 5px 0;
+	max-width: 100%;
+}
+
+#container_div #container_footer {
+	text-align: center;
+	font-size: 9pt;
+	margin-top: 15px;
+	margin-bottom: 0;
+	clear: both;
+}
+
+#container_div .title {
+	color: #104B86;
+	font-weight: bold;
+}
+
+#container_div .subtitle {
+	color: #4B77A4;
+	font-weight: bold;
+}
+
+#container_div .important {
+	color: #FF0000;
+}
+
+#container_div a, #container_div a:visited, #unitHomepage a, #unitHomepage a:visited {
+	color: #005d9b;
+	text-decoration: none;
+}
+
+#container_div a:hover, #unitHomepage a:hover {
+	color: #888888;
+	text-decoration: underline;
+}
+
+#assignment_show .description.teacher-version, #quiz_show .description.teacher-version {
+	overflow-y: auto;
+	height: auto;
+	overflow-y: initial;
+	height: initial;
+	border: none;
+}
+
+.reference {
+	text-indent: -36pt;
+	margin-left: 36pt !important;
+}
+
+li.reference {
+	list-style-type: none;
+}
+
+ol.parented {
+	counter-reset: parent;
+	margin-left: .6875em !important;
+}
+
+ol.parented, .parented ol {
+	list-style: none !important;
+}
+
+ol.parented > li:before {
+	counter-increment: parent;
+	content: counter(parent) ".";
+	padding-right: 9px;
+}
+
+ol.parented li ol {
+	counter-reset: child;
+}
+
+ol.parented ol li:before {
+	counter-increment: child;
+	content: counter(parent) "." counters(child, '.');
+	padding-right: 9px;
+}
+
+#container_div blockquote {
+	margin: 1.5em;
+}
+
+/****************************************************
+* Unit Homepage CSS                                 *
+*                                                   *
+* Note: Still used by MSN program. DO NOT REMOVE!!! *
+****************************************************/
+
+#container_div #unitActivities, table[style='width: 619px;'] #unitActivities, table[width='619'] #unitActivities {
+	padding: 0 0 20px 20px;
+	width: 300px;
+	float: right;
+}
+
+#container_div #unitActivities img, table[style='width: 619px;'] #unitActivities img, table[width='619'] #unitActivities img {
+	width: 100%;
+	max-height: 200px !important;
+}
+
+#container_div #unitActivities #activityList, table[style='width: 619px;'] #unitActivities #activityList, table[width='619'] #unitActivities #activityList {
+	padding: 10px;
+	border: 1px solid #000000;
+}
+
+#container_div #unitActivities #activityList .section, table[style='width: 619px;'] #unitActivities #activityList .section, table[width='619'] #unitActivities #activityList .section {
+	font-weight: bold;
+}
+
+#container_div #unitActivities #activityList p:last-of-type, table[style='width: 619px;'] #unitActivities #activityList p:last-of-type, table[width='619'] #unitActivities #activityList p:last-of-type {
+	margin: 0;
+}
+
+#container_div #return {
+	margin: 1em 0 0;
+	text-align: right;
+	clear: both;
+}
+
+/******************
+* Course Info CSS *
+******************/
+
+#container_div.courseInfo {
+	width: calc(100% - 150px);
+}
+
+#container_div.courseInfo .title {
+	font-weight: bold;
+	font-size: 12pt;
+	padding-top: 1em;
+}
+
+#container_div.courseInfo .subtitle {
+	font-weight: bold;
+	padding-top: 1em;
+}
+
+#container_div.courseInfo p {
+	margin: 0;
+}
+
+#container_div.courseInfo #img {
+	float: right;
+	width: 250px;
+}
+
+#container_div.courseInfo #img img {
+	width: 100%;
+}
+
+.overspace {
+	padding-top: 1em !important;
+}
+
+.underspace {
+	padding-bottom: 1em !important;
+}
+
+.indent1 {
+	margin-left: 20px !important;
+}
+
+.indent2 {
+	margin-left: 40px !important;
+}
+
+.indent3 {
+	margin-left: 60px !important;
+}
+
+/* Begin Added 7/6/2017 */
+.introImg {
+	float: right;
+	max-width: 250px;
+	margin: 0 0 10px 10px !important;
+}
+
+.introImg img {
+	width: 100%;
+}
+
+.floatLeft {
+	float: left;
+}
+
+.floatRight {
+	float: right;
+}
+
+.margin {
+	margin: 0;
+}
+
+.margin-t {
+	margin-top: 10px;
+}
+
+.margin-r {
+	margin-right: 10px;
+}
+
+.margin-b {
+	margin-bottom: 10px;
+}
+
+.margin-l {
+	margin-left: 10px;
+}
+
+.margin-tr {
+	margin-top: 10px;
+	margin-right: 10px;
+}
+
+.margin-tb {
+	margin-top: 10px;
+	margin-bottom: 10px;
+}
+
+.margin-tl {
+	margin-top: 10px;
+	margin-left: 10px;
+}
+
+.margin-rb {
+	margin-right: 10px;
+	margin-bottom: 10px;
+}
+
+.margin-rl {
+	margin-right: 10px;
+	margin-left: 10px;
+}
+
+.margin-bl {
+	margin-bottom: 10px;
+	margin-left: 10px;
+}
+
+.margin-trb {
+	margin-top: 10px;
+	margin-right: 10px;
+	margin-bottom: 10px;
+}
+
+.margin-trl {
+	margin-top: 10px;
+	margin-right: 10px;
+	margin-left: 10px;
+}
+
+.margin-rbl {
+	margin-right: 10px;
+	margin-left: 10px;
+	margin-bottom: 10px;
+}
+
+.margin-trbl {
+	margin-top: 10px;
+	margin-right: 10px;
+	margin-left: 10px;
+	margin-bottom: 10px;
+}
+
+.padding {
+	padding: 0;
+}
+
+.padding-t {
+	padding-top: 10px;
+}
+
+.padding-r {
+	padding-right: 10px;
+}
+
+.padding-b {
+	padding-bottom: 10px;
+}
+
+.padding-l {
+	padding-left: 10px;
+}
+
+.padding-tr {
+	padding-top: 10px;
+	padding-right: 10px;
+}
+
+.padding-tb {
+	padding-top: 10px;
+	padding-bottom: 10px;
+}
+
+.padding-tl {
+	padding-top: 10px;
+	padding-left: 10px;
+}
+
+.padding-rb {
+	padding-right: 10px;
+	padding-bottom: 10px;
+}
+
+.padding-rl {
+	padding-right: 10px;
+	padding-left: 10px;
+}
+
+.padding-bl {
+	padding-bottom: 10px;
+	padding-left: 10px;
+}
+
+.padding-trb {
+	padding-top: 10px;
+	padding-right: 10px;
+	padding-bottom: 10px;
+}
+
+.padding-trl {
+	padding-top: 10px;
+	padding-right: 10px;
+	padding-left: 10px;
+}
+
+.padding-rbl {
+	padding-right: 10px;
+	padding-left: 10px;
+	padding-bottom: 10px;
+}
+
+.padding-trbl {
+	padding-top: 10px;
+	padding-right: 10px;
+	padding-left: 10px;
+	padding-bottom: 10px;
+}
+/* End Added 7/6/2017 */
+
+/******************************
+* Course Homepage CSS Overlay *
+******************************/
+
+/*#course_home_content h2:first-of-type, #course_home_content div:first-of-type, #content.container-fluid div:first-of-type, #content.container-fluid h1:first-of-type {
+	display: none;
+}*/
+
+
+#unitHomepage #title h2 {
+	color: #ffffff;
+	font-weight: bold;
+}
+
+#unitHomepage #instructorInfo {
+	padding: 5px;
+	border: 1px solid #000000;
+	margin-bottom: 10px;
+}
+
+#unitHomepage .unitImgRow, #unitHomepage .unitNameRow {
+	margin: 0 0 10px;
+	padding: 0;
+	text-align: center;
+	text-align: justify;
+	-ms-text-justify: distribute-all-lines;
+	text-justify: distribute-all-lines;
+	display: -webkit-flex;
+	-webkit-justify-content: space-between;
+	display: flex;
+	justify-content: space-between;
+}
+
+#unitHomepage .unitImgRow .unit {
+	border: 1px solid #000000;
+	display: inline-block;
+	*dispaly: inline;
+	zoom: 1;
+	width: 32%;
+/*	max-height: 277px;*/
+	overflow: hidden;
+	position: relative;
+}
+
+/*#unitHomepage .unitImgRow .stretch {
+	display: inline-block;
+	width: 100%;
+	line-height: 0;
+	font-size: 0;
+}*/
+
+/*#unitHomepage .unitImgRow .unit a {
+	position: relative;
+}*/
+
+#unitHomepage .unitImgRow .unit a img {
+	top: 0;
+	right: 0;
+	left: 0;
+	width: 100%;
+	max-width: 345px !important;
+	max-height: 229px !important;
+}
+
+#unitHomepage .unitImgRow .unit a .unitNum {
+	text-align: center;
+	position: absolute;
+	bottom: 0;
+	right: 0;
+	left: 0;
+	color: #ffffff;
+	line-height: initial;
+	font-weight: bold;
+	font-size: 1.2em;
+	background-color: rgba(0, 0, 0, 0.6);
+	height: 3em;
+	padding: 10px 10px 0;
+}
+
+@media screen and (max-width: 1560px) {
+	#unitHomepage .unitImgRow .unit a .unitNum {
+		font-size: 1.1em;
+		padding: 10px 10px 3px;
+	}
+}
+
+@media screen and (max-width: 1505px) {
+	#unitHomepage .unitImgRow .unit a .unitNum {
+		font-size: 1.0em;
+		padding: 10px 10px 7px;
+	}
+}
+
+@media screen and (max-width: 1420px) {
+	#unitHomepage .unitImgRow .unit a .unitNum {
+		font-size: 0.9em;
+		padding: 10px 10px;
+	}
+}
+
+@media screen and (max-width: 1330px) {
+	#unitHomepage .unitImgRow .unit a .unitNum {
+		height: auto;
+		padding: 15px 10px;
+		font-size: 1.2em;
+	}
+
+	#unitHomepage .unitImgRow .unit a .unitNum .unitTitle {
+		display: none;
+	}
+}
