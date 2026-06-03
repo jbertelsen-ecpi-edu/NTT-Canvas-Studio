@@ -3,19 +3,31 @@
 
   var VERSION = '0.1.0';
 
-  // Cross-realm dedupe guard. See claimPage() near the bottom — the claim is
-  // made at DOM-ready (not at module top), so it is robust regardless of when
-  // this file is injected/executed.
+  // Dedupe + timing strategy: this file is loaded by BOTH the browser
+  // extension (isolated content-script world) and the Canvas Theme upload
+  // (page main world). They share the DOM but not window globals or DOM-node
+  // JS expandos, so coordination is via shared-DOM flags: each component is
+  // tagged with a `data-ntt-*-ready` attribute once initialized, and every
+  // init step is idempotent. That makes re-runs and a second copy harmless,
+  // with no page-level "claim" that could let an early copy (one that ran
+  // before Canvas rendered the page body) lock out the correctly-timed copy.
+  // See the bottom of the file for the run/observe loop.
 
   // ---------------------------------------------------------------------------
   // Tabs
   // ---------------------------------------------------------------------------
 
   function initTabs(root) {
+    if (root.hasAttribute('data-ntt-tabs-ready')) return;
+
     const tabs = Array.from(root.querySelectorAll('.ntt-tab'));
     const panels = Array.from(root.querySelectorAll('.ntt-tab-panel'));
 
     if (!tabs.length || !panels.length) return;
+
+    // Mark ready only once there's real content, so an early/empty pass can be
+    // retried by the observer when Canvas finishes rendering the panels.
+    root.setAttribute('data-ntt-tabs-ready', '');
 
     // WAI-ARIA APG: horizontal tabs use Left/Right arrows, vertical tabs use
     // Up/Down. Map both keys to the same "next/prev" action so users get the
@@ -86,10 +98,14 @@
   // ---------------------------------------------------------------------------
 
   function initAccordion(root) {
+    if (root.hasAttribute('data-ntt-accordion-ready')) return;
+
     const items = Array.from(root.querySelectorAll('.ntt-accordion-item'));
     const headers = Array.from(root.querySelectorAll('.ntt-accordion-header'));
 
     if (!headers.length) return;
+
+    root.setAttribute('data-ntt-accordion-ready', '');
 
     // expand-single: opening one item auto-closes the others. Default is
     // multiple (each item toggles independently).
@@ -202,6 +218,8 @@
   }
 
   function decorateFileRow(row) {
+    if (row.hasAttribute('data-ntt-row-ready')) return;
+
     const downloadButton = row.querySelector('.ntt-file-row__download');
     const fileNameLink = row.querySelector('a[href]:not(.ntt-file-row__download)');
     const playerMode = !isAuthoringMode();
@@ -321,6 +339,8 @@
         }
       }
     }
+
+    row.setAttribute('data-ntt-row-ready', '');
   }
 
   function getFileExtension(row, link) {
@@ -516,29 +536,42 @@
     document.querySelectorAll('.ntt-accordion').forEach(createAccordionToolbar);
   }
 
-  // Claim the page via a marker on the shared <html> element. The extension
-  // (isolated content-script world) and the Canvas Theme upload (page main
-  // world) share the DOM but not window globals, so a DOM attribute is what
-  // lets them coordinate: the first copy to claim wins, any later copy bails.
-  // This prevents double-decoration when a developer with the extension views
-  // a page that also carries the Theme copy. (Students have no extension, so
-  // only the Theme copy runs for them.)
-  function claimPage() {
-    var docEl = document.documentElement;
-    if (docEl.hasAttribute('data-ntt-runtime')) return false;
-    docEl.setAttribute('data-ntt-runtime', VERSION);
-    return true;
+  function runInit() {
+    if (document.documentElement) {
+      document.documentElement.setAttribute('data-ntt-runtime', VERSION);
+    }
+    try {
+      initAllComponents();
+    } catch (err) {
+      // Never let one failure wedge the page or stop the observer.
+      if (window.console && console.error) console.error('[NTT] init error', err);
+    }
   }
 
-  function boot() {
-    if (!claimPage()) return;
-    initAllComponents();
+  // Canvas renders wiki-page content via JS, so the component markup can appear
+  // after this script first runs. Watch for it and (re)initialize as it shows
+  // up. Debounced; all init is idempotent, so our own decoration mutations
+  // settle in a pass or two without looping.
+  var initTimer = null;
+  function scheduleInit() {
+    if (initTimer) return;
+    initTimer = setTimeout(function () {
+      initTimer = null;
+      runInit();
+    }, 50);
   }
 
-  // Decoration must wait for the component markup to exist.
+  function startObserver() {
+    if (!window.MutationObserver) return;
+    var observer = new MutationObserver(scheduleInit);
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+  }
+
+  // Run now, again at the usual lifecycle points, and whenever the DOM changes.
+  runInit();
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', boot);
-  } else {
-    boot();
+    document.addEventListener('DOMContentLoaded', runInit);
   }
+  window.addEventListener('load', runInit);
+  startObserver();
 })();
