@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  var VERSION = '0.3.0';
+  var VERSION = '0.5.0';
 
   // True only in the browser-extension copy (content script). The Canvas Theme
   // copy runs in the page's main world where `chrome.runtime.id` is undefined.
@@ -34,17 +34,53 @@
   // Tabs
   // ---------------------------------------------------------------------------
 
+  // Heal structural damage from the rich-text editor before wiring tabs up.
+  // TinyMCE can split the tab strip into several `.ntt-tabs-list` blocks (and
+  // leave an empty, label-less tab stub behind). In vertical placements each
+  // extra list is another column-1 grid item with `grid-row: auto / span 99`,
+  // so the second one is placed ~99 rows down and opens a large empty gap
+  // before the stray tabs. Merge every list back into the first and drop tabs
+  // that have no label. Idempotent: once merged, later passes are no-ops.
+  function normalizeTabs(root) {
+    const lists = Array.from(root.querySelectorAll('.ntt-tabs-list'));
+    if (lists.length > 1) {
+      const primary = lists[0];
+      lists.slice(1).forEach(function (list) {
+        while (list.firstChild) primary.appendChild(list.firstChild);
+        list.remove();
+      });
+    }
+    const primaryList = root.querySelector('.ntt-tabs-list');
+    if (primaryList) {
+      Array.from(primaryList.querySelectorAll('.ntt-tab')).forEach(function (tab) {
+        if (!tab.textContent.trim()) tab.remove();
+      });
+    }
+  }
+
   function initTabs(root) {
-    if (root.hasAttribute('data-ntt-tabs-ready')) return;
+    // Ownership marker: '' = a non-extension (theme) copy initialized this,
+    // 'ext' = the extension copy did. In extension-priority mode we take over a
+    // stale theme copy's init once (so the first-tab default + normalize apply),
+    // exactly like the toolbar override. Without priority it's plain first-wins.
+    const priorOwner = root.getAttribute('data-ntt-tabs-ready');
+    const canOverride = IS_EXTENSION && extPriority;
+    if (priorOwner !== null && (priorOwner === 'ext' || !canOverride)) return;
+
+    normalizeTabs(root);
 
     const tabs = Array.from(root.querySelectorAll('.ntt-tab'));
     const panels = Array.from(root.querySelectorAll('.ntt-tab-panel'));
 
     if (!tabs.length || !panels.length) return;
 
+    // True when another copy already initialized (and bound listeners): we're
+    // taking over, so skip re-binding to avoid duplicate handlers.
+    const takingOver = priorOwner !== null;
+
     // Mark ready only once there's real content, so an early/empty pass can be
     // retried by the observer when Canvas finishes rendering the panels.
-    root.setAttribute('data-ntt-tabs-ready', '');
+    root.setAttribute('data-ntt-tabs-ready', IS_EXTENSION ? 'ext' : '');
 
     // WAI-ARIA APG: horizontal tabs use Left/Right arrows, vertical tabs use
     // Up/Down. Map both keys to the same "next/prev" action so users get the
@@ -72,37 +108,39 @@
       });
     }
 
-    tabs.forEach(function (tab, index) {
-      tab.addEventListener('click', function (event) {
-        // Tab labels are anchors so saved HTML degrades gracefully without
-        // JS — when JS is active we stop the href="#..." jump.
-        event.preventDefault();
-        activateTab(tab);
-        tab.focus();
-      });
-
-      tab.addEventListener('keydown', function (event) {
-        let nextIndex = null;
-
-        if (event.key === nextKey) nextIndex = (index + 1) % tabs.length;
-        if (event.key === prevKey) nextIndex = (index - 1 + tabs.length) % tabs.length;
-        if (event.key === 'Home') nextIndex = 0;
-        if (event.key === 'End') nextIndex = tabs.length - 1;
-
-        if (nextIndex !== null) {
+    if (!takingOver) {
+      tabs.forEach(function (tab, index) {
+        tab.addEventListener('click', function (event) {
+          // Tab labels are anchors so saved HTML degrades gracefully without
+          // JS — when JS is active we stop the href="#..." jump.
           event.preventDefault();
-          tabs[nextIndex].focus();
-          activateTab(tabs[nextIndex]);
-        }
+          activateTab(tab);
+          tab.focus();
+        });
+
+        tab.addEventListener('keydown', function (event) {
+          let nextIndex = null;
+
+          if (event.key === nextKey) nextIndex = (index + 1) % tabs.length;
+          if (event.key === prevKey) nextIndex = (index - 1 + tabs.length) % tabs.length;
+          if (event.key === 'Home') nextIndex = 0;
+          if (event.key === 'End') nextIndex = tabs.length - 1;
+
+          if (nextIndex !== null) {
+            event.preventDefault();
+            tabs[nextIndex].focus();
+            activateTab(tabs[nextIndex]);
+          }
+        });
       });
-    });
+    }
 
-    const activeTab =
-      tabs.find(function (tab) {
-        return tab.getAttribute('aria-selected') === 'true';
-      }) || tabs[0];
-
-    activateTab(activeTab);
+    // The first tab is the default "start page" on load. We intentionally do
+    // NOT honor a saved aria-selected here: in authoring, clicking a tab to edit
+    // its panel marks that tab selected, and we don't want that transient
+    // editing state to become the published landing tab. (A deliberate
+    // non-first default would need its own "set as start page" control.)
+    activateTab(tabs[0]);
   }
 
   // ---------------------------------------------------------------------------
@@ -128,6 +166,15 @@
     // multiple (each item toggles independently).
     const expandSingle = root.classList.contains('ntt-accordion--expand-single');
 
+    // Default View (set via the authoring context menu): the initial open state
+    // on page load. When set, it takes precedence over the authored per-item
+    // is-open AND over the player-mode "auto-open sections with file rows".
+    const defaultView =
+      root.classList.contains('ntt-accordion--default-all-open') ? 'all-open' :
+      root.classList.contains('ntt-accordion--default-first-open') ? 'first-open' :
+      root.classList.contains('ntt-accordion--default-all-closed') ? 'all-closed' :
+      null;
+
     function setOpen(item, isOpen) {
       const header = item.querySelector('.ntt-accordion-header');
       const panelId = header && header.getAttribute('aria-controls');
@@ -142,18 +189,29 @@
     // first item that's marked open, and auto-open any section containing a
     // download file row when rendering in player mode.
     let firstOpenSeen = false;
-    items.forEach(function (item) {
+    items.forEach(function (item, index) {
       const header = item.querySelector('.ntt-accordion-header');
-      let isOpen = Boolean(
-        item.classList.contains('is-open') ||
-          (header && header.getAttribute('aria-expanded') === 'true')
-      );
+      let isOpen;
 
-      if (!isOpen && !isAuthoringMode()) {
-        const panelId = header && header.getAttribute('aria-controls');
-        const panel = panelId ? root.querySelector('#' + CSS.escape(panelId)) : null;
-        if (panel && panel.querySelector('.ntt-file-row')) {
-          isOpen = true;
+      if (defaultView === 'all-open') {
+        isOpen = true;
+      } else if (defaultView === 'all-closed') {
+        isOpen = false;
+      } else if (defaultView === 'first-open') {
+        isOpen = index === 0;
+      } else {
+        // No explicit default: honor the authored state, and (player mode only)
+        // auto-open any section that contains a download file row.
+        isOpen = Boolean(
+          item.classList.contains('is-open') ||
+            (header && header.getAttribute('aria-expanded') === 'true')
+        );
+        if (!isOpen && !isAuthoringMode()) {
+          const panelId = header && header.getAttribute('aria-controls');
+          const panel = panelId ? root.querySelector('#' + CSS.escape(panelId)) : null;
+          if (panel && panel.querySelector('.ntt-file-row')) {
+            isOpen = true;
+          }
         }
       }
 

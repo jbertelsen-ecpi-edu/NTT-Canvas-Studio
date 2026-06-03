@@ -281,6 +281,13 @@
   line-height: 1.4;
 }
 
+/* The `display: flex` above overrides the native [hidden] attribute, so without
+   this the "Got it" dismiss (which sets hidden=true) leaves the alert visible.
+   The attribute+class selector outranks the rule above and re-hides it. */
+.ntt-download-hint[hidden] {
+  display: none;
+}
+
 .ntt-download-hint__arrow {
   flex: none;
   font-size: 1.1rem;
@@ -349,6 +356,36 @@
 
 .ntt-accordion-panel[hidden] {
   display: none;
+}
+
+/*
+ * Keep authored media inside the component bounds. Without max-width an image
+ * wider than the panel either overflows or gets clipped by the accordion's
+ * overflow:hidden; height:auto preserves aspect ratio when it's scaled down.
+ * Floated images are cleared so the panel grows to contain them rather than
+ * letting them spill past the section.
+ */
+.ntt-tab-panel img,
+.ntt-accordion-panel img,
+.ntt-tab-panel video,
+.ntt-accordion-panel video,
+.ntt-tab-panel iframe,
+.ntt-accordion-panel iframe {
+  max-width: 100%;
+}
+
+.ntt-tab-panel img,
+.ntt-accordion-panel img,
+.ntt-tab-panel video,
+.ntt-accordion-panel video {
+  height: auto;
+}
+
+.ntt-tab-panel::after,
+.ntt-accordion-panel::after {
+  content: "";
+  display: block;
+  clear: both;
 }
 
 /*
