@@ -60,6 +60,21 @@ effect on pages without NTT components.
    - **Preview Your Changes**, then **Apply**. (Apply is account-wide and takes
      a few minutes to propagate.)
 
+### Verifying a release (propagation)
+
+After **Apply**, Canvas warns it "can take hours to propagate." That is the
+worst-case ceiling for global cache turnover, **not** how long you wait to
+verify — and it never affects development (you iterate on the extension,
+instantly; the Theme is only touched at release points). To confirm a release
+right away:
+
+- **Preview Your Changes** runs the just-uploaded files in the sandbox
+  immediately, before Apply — instant confirmation they work.
+- The uploaded file is live at its URL the moment it uploads (the **View File**
+  link) — open it to confirm the correct version is up.
+- After Apply, spot-check a real page with a hard refresh (Ctrl+F5) or an
+  incognito window to bypass local cache; it usually updates within minutes.
+
 ### Rollback
 
 Re-upload the original `NTTcanvasUI.20190225.css` to the CSS slot and clear the
