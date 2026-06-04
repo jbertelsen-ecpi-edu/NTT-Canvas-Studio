@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  var VERSION = '0.8.1';
+  var VERSION = '0.8.2';
 
   // True only in the browser-extension copy (content script). The Canvas Theme
   // copy runs in the page's main world where `chrome.runtime.id` is undefined.
@@ -194,9 +194,15 @@
         panels = allPanels.filter(function (p) { return p !== sharedPanel; });
       }
 
-      // Tabs after the shared one (in document order) receive the block.
+      // Tabs after the shared one (in document order) receive the block —
+      // except any tab the author opted out (e.g. a Non-Qualified-Person
+      // course that shouldn't get the Qualified-Person job aids). The opt-out
+      // is per tab because there's no reliable audience rule.
       allTabs.forEach(function (t, i) {
-        if (i > sharedIndex && t !== sharedTab) belowSharedTabs.add(t);
+        if (i > sharedIndex && t !== sharedTab &&
+            !t.hasAttribute('data-ntt-shared-opt-out')) {
+          belowSharedTabs.add(t);
+        }
       });
       tabs = allTabs.filter(function (t) { return t !== sharedTab; });
     }

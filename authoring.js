@@ -250,6 +250,16 @@
       color: #6a7686;
     }
 
+    /* Authoring cue: this tab is excluded from the shared (global) tab's
+       content. Runtime drops it from the recipients; here we badge it so the
+       author can see the exception at a glance. */
+    .ntt-tab[data-ntt-shared-opt-out]::after {
+      content: " ⊘ no shared content";
+      font-size: 10px;
+      font-weight: normal;
+      color: #6a7686;
+    }
+
     .ntt-tab-panel {
       display: block !important;
       border: 1px solid #c7cdd1;
@@ -780,6 +790,7 @@
       y: y,
       isTab: isTab,
       isSharedTab: isTab ? tab.classList.contains('ntt-tab--shared') : false,
+      isSharedOptOut: isTab ? tab.hasAttribute('data-ntt-shared-opt-out') : false,
       tabGroup: isTab ? (tab.getAttribute('data-ntt-group') || '') : '',
       isAccordionHeader: isAccordionHeader,
       isComponentRoot: isComponentRoot,
@@ -1012,6 +1023,7 @@
         <button type="button" data-ntt-action="insert-tab-before">Insert Tab Before</button>
         <button type="button" data-ntt-action="insert-tab-after">Insert Tab After</button>
         <button type="button" data-ntt-action="toggle-shared-tab" data-ntt-shared-label>Mark as shared (global) tab</button>
+        <button type="button" data-ntt-action="toggle-shared-opt-out" data-ntt-shared-opt-out-label>Exclude from shared content</button>
         <button type="button" data-ntt-action="delete-tab" class="is-danger">Delete Tab</button>
       </div>
 
@@ -1141,6 +1153,16 @@
           : 'Mark as shared (global) tab';
         sharedBtn.classList.toggle('is-current', options.isSharedTab);
       }
+      // Opt-out only makes sense on a normal tab (not the shared tab itself,
+      // which is the source of the content).
+      const optOutBtn = tabSection.querySelector('[data-ntt-shared-opt-out-label]');
+      if (optOutBtn) {
+        optOutBtn.hidden = options.isSharedTab;
+        optOutBtn.textContent = options.isSharedOptOut
+          ? 'Include in shared content'
+          : 'Exclude from shared content';
+        optOutBtn.classList.toggle('is-current', options.isSharedOptOut);
+      }
     }
     if (groupSection) groupSection.hidden = !options.isTab;
     if (options.isTab && groupSection) {
@@ -1240,6 +1262,10 @@
     }
     if (action === 'toggle-shared-tab') {
       toggleSharedTab();
+      return;
+    }
+    if (action === 'toggle-shared-opt-out') {
+      toggleSharedOptOut();
       return;
     }
     if (action === 'insert-tab-before') {
@@ -1359,6 +1385,21 @@
       tab.removeAttribute('data-ntt-group');
     }
     if (tabsRoot) renderTabGroupLabels(tabsRoot);
+    notifyEditorChanged();
+  }
+
+  // Toggle whether this tab is excluded from the shared (global) tab's content.
+  // Per-tab because there's no reliable audience rule (e.g. Non-Qualified-Person
+  // courses shouldn't receive Qualified-Person job aids). Only the marker is
+  // written to the HTML; the runtime drops opted-out tabs from the recipients.
+  function toggleSharedOptOut() {
+    const tab = contextTarget && contextTarget.tab;
+    if (!tab) return;
+    if (tab.hasAttribute('data-ntt-shared-opt-out')) {
+      tab.removeAttribute('data-ntt-shared-opt-out');
+    } else {
+      tab.setAttribute('data-ntt-shared-opt-out', '');
+    }
     notifyEditorChanged();
   }
 
