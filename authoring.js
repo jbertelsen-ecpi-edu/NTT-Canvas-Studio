@@ -598,14 +598,6 @@
 `;
   }
 
-  // Position marker for the shared (global) tab's content. Carries label text
-  // (so TinyMCE won't prune it as an empty block) and contenteditable=false so
-  // authors don't type into it. The runtime moves the shared block here and
-  // hides this marker; in the editor it renders as a labeled placeholder bar.
-  function getSharedAnchorHtml() {
-    return '<div class="ntt-shared-anchor" data-ntt-shared-anchor contenteditable="false">Shared (global) assets inject here</div>';
-  }
-
   function getFileRowHtml() {
     const uid = 'ntt-file-' + Date.now();
     const today = new Date().toISOString().slice(0, 10);
@@ -831,7 +823,7 @@
       componentWidth: insideComponent ? getComponentWidth(nttComponent) : null,
       componentAlign: insideComponent ? getComponentAlign(nttComponent) : null,
       canInsert: canInsert,
-      isInTabPanel: inTabPanel,
+      accordionInTabPanel: isAccordionHeader && accordionInsideTabPanel,
       hasToggleableHeading: hasToggleableHeading,
       headingHidden: hasToggleableHeading ? isHeadingHidden(toggleableHeading) : false,
       isInAccordionPanel: isInAccordionPanel,
@@ -1033,7 +1025,6 @@
         <div class="ntt-context-menu__section-label">Insert</div>
         <button type="button" data-ntt-action="insert-tabs">Insert Tabs</button>
         <button type="button" data-ntt-action="insert-accordion">Insert Accordion</button>
-        <button type="button" data-ntt-action="insert-shared-anchor" data-ntt-shared-anchor-btn>Insert shared-assets placeholder</button>
       </div>
 
       <div class="ntt-context-menu__section" data-ntt-heading-section hidden>
@@ -1067,6 +1058,7 @@
         <div class="ntt-context-menu__section-label">Accordion</div>
         <button type="button" data-ntt-action="insert-accordion-item-before">Insert Before</button>
         <button type="button" data-ntt-action="insert-accordion-item-after">Insert After</button>
+        <button type="button" data-ntt-action="insert-shared-anchor-above" data-ntt-shared-anchor-btn>Insert Shared Assets Placeholder Above</button>
         <button type="button" data-ntt-action="delete-accordion-item" class="is-danger">Delete</button>
       </div>
 
@@ -1172,10 +1164,6 @@
     const alignSection = menu.querySelector('[data-ntt-align-section]');
     const componentSection = menu.querySelector('[data-ntt-component-section]');
     insertSection.hidden = !options.canInsert;
-    // The shared-assets placeholder only makes sense inside a tab panel (where
-    // the shared block can be injected). Hide it in the generic insert context.
-    const anchorBtn = insertSection.querySelector('[data-ntt-shared-anchor-btn]');
-    if (anchorBtn) anchorBtn.hidden = !options.isInTabPanel;
     headingSection.hidden = !options.hasToggleableHeading;
     fileRowSection.hidden = !(options.isInAccordionPanel || options.isOnFileRow);
     tabSection.hidden = !options.isTab;
@@ -1206,6 +1194,10 @@
       });
     }
     accordionSection.hidden = !options.isAccordionHeader;
+    // The shared-assets placeholder only does anything when the accordion is in
+    // a tab panel (the shared block is a tabs feature) — hide it otherwise.
+    const anchorBtn = accordionSection.querySelector('[data-ntt-shared-anchor-btn]');
+    if (anchorBtn) anchorBtn.hidden = !options.accordionInTabPanel;
     tabsPlacementSection.hidden = !options.isInTabs;
     accordionExpandSection.hidden = !options.isInAccordion;
     accordionDefaultSection.hidden = !options.isInAccordion;
@@ -1294,8 +1286,8 @@
       insertHtml('\n' + getAccordionHtml() + '\n');
       return;
     }
-    if (action === 'insert-shared-anchor') {
-      insertHtml(getSharedAnchorHtml());
+    if (action === 'insert-shared-anchor-above') {
+      insertSharedAnchorAboveAccordion();
       return;
     }
     if (action === 'toggle-shared-tab') {
@@ -1438,6 +1430,34 @@
     } else {
       tab.setAttribute('data-ntt-shared-opt-out', '');
     }
+    notifyEditorChanged();
+  }
+
+  // Drop the shared-assets placement marker immediately above the right-clicked
+  // accordion section, so the runtime injects the shared (global) block there.
+  // Only the marker is saved (label text + contenteditable=false so TinyMCE
+  // keeps it and authors can't edit it). One marker per tab panel — re-running
+  // on another section relocates it rather than adding a second.
+  function insertSharedAnchorAboveAccordion() {
+    const header = contextTarget && contextTarget.accordionHeader;
+    let item = contextTarget && contextTarget.accordionItem;
+    if (!item && header) item = header.closest('.ntt-accordion-item');
+    if (!item || !item.parentNode) return;
+
+    const doc = getContextDoc();
+    const panel = item.closest('.ntt-tab-panel');
+    if (panel) {
+      Array.from(panel.querySelectorAll('[data-ntt-shared-anchor]')).forEach(function (el) {
+        el.remove();
+      });
+    }
+
+    const marker = doc.createElement('div');
+    marker.className = 'ntt-shared-anchor';
+    marker.setAttribute('data-ntt-shared-anchor', '');
+    marker.setAttribute('contenteditable', 'false');
+    marker.textContent = 'Shared (global) assets inject here';
+    item.parentNode.insertBefore(marker, item);
     notifyEditorChanged();
   }
 
