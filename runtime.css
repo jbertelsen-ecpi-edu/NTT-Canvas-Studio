@@ -189,6 +189,13 @@
   padding-bottom: 0.25rem;
 }
 
+/* The shared-content anchor is an authoring-only position marker: the runtime
+   moves the shared block to it, but the marker itself never renders to
+   students. */
+.ntt-tabs [data-ntt-shared-anchor] {
+  display: none;
+}
+
 /*
  * Placement modifiers (default is top — no class needed).
  *

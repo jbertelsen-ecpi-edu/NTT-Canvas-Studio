@@ -260,6 +260,26 @@
       color: #6a7686;
     }
 
+    /* Shared-assets anchor: where the shared (global) block will be injected at
+       runtime. Shown here as a labeled placeholder bar so the author sees the
+       drop point; hidden from students by runtime.css. */
+    .ntt-shared-anchor {
+      display: block;
+      margin: 10px 0;
+      padding: 6px 10px;
+      border: 1px dashed #0b2f57;
+      border-radius: 4px;
+      background: #eef5ff;
+      color: #0b2f57;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .ntt-shared-anchor::before {
+      content: "⬇ ";
+    }
+
     .ntt-tab-panel {
       display: block !important;
       border: 1px solid #c7cdd1;
@@ -803,6 +823,7 @@
       componentWidth: insideComponent ? getComponentWidth(nttComponent) : null,
       componentAlign: insideComponent ? getComponentAlign(nttComponent) : null,
       canInsert: canInsert,
+      accordionInTabPanel: isAccordionHeader && accordionInsideTabPanel,
       hasToggleableHeading: hasToggleableHeading,
       headingHidden: hasToggleableHeading ? isHeadingHidden(toggleableHeading) : false,
       isInAccordionPanel: isInAccordionPanel,
@@ -1037,6 +1058,7 @@
         <div class="ntt-context-menu__section-label">Accordion</div>
         <button type="button" data-ntt-action="insert-accordion-item-before">Insert Before</button>
         <button type="button" data-ntt-action="insert-accordion-item-after">Insert After</button>
+        <button type="button" data-ntt-action="insert-shared-anchor-above" data-ntt-shared-anchor-btn>Insert Shared Assets Placeholder Above</button>
         <button type="button" data-ntt-action="delete-accordion-item" class="is-danger">Delete</button>
       </div>
 
@@ -1172,6 +1194,10 @@
       });
     }
     accordionSection.hidden = !options.isAccordionHeader;
+    // The shared-assets placeholder only does anything when the accordion is in
+    // a tab panel (the shared block is a tabs feature) — hide it otherwise.
+    const anchorBtn = accordionSection.querySelector('[data-ntt-shared-anchor-btn]');
+    if (anchorBtn) anchorBtn.hidden = !options.accordionInTabPanel;
     tabsPlacementSection.hidden = !options.isInTabs;
     accordionExpandSection.hidden = !options.isInAccordion;
     accordionDefaultSection.hidden = !options.isInAccordion;
@@ -1258,6 +1284,10 @@
     }
     if (action === 'insert-accordion') {
       insertHtml('\n' + getAccordionHtml() + '\n');
+      return;
+    }
+    if (action === 'insert-shared-anchor-above') {
+      insertSharedAnchorAboveAccordion();
       return;
     }
     if (action === 'toggle-shared-tab') {
@@ -1400,6 +1430,34 @@
     } else {
       tab.setAttribute('data-ntt-shared-opt-out', '');
     }
+    notifyEditorChanged();
+  }
+
+  // Drop the shared-assets placement marker immediately above the right-clicked
+  // accordion section, so the runtime injects the shared (global) block there.
+  // Only the marker is saved (label text + contenteditable=false so TinyMCE
+  // keeps it and authors can't edit it). One marker per tab panel — re-running
+  // on another section relocates it rather than adding a second.
+  function insertSharedAnchorAboveAccordion() {
+    const header = contextTarget && contextTarget.accordionHeader;
+    let item = contextTarget && contextTarget.accordionItem;
+    if (!item && header) item = header.closest('.ntt-accordion-item');
+    if (!item || !item.parentNode) return;
+
+    const doc = getContextDoc();
+    const panel = item.closest('.ntt-tab-panel');
+    if (panel) {
+      Array.from(panel.querySelectorAll('[data-ntt-shared-anchor]')).forEach(function (el) {
+        el.remove();
+      });
+    }
+
+    const marker = doc.createElement('div');
+    marker.className = 'ntt-shared-anchor';
+    marker.setAttribute('data-ntt-shared-anchor', '');
+    marker.setAttribute('contenteditable', 'false');
+    marker.textContent = 'Shared (global) assets inject here';
+    item.parentNode.insertBefore(marker, item);
     notifyEditorChanged();
   }
 
