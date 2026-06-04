@@ -199,6 +199,24 @@
       height: 2px;
     }
 
+    /* Shared/global tab badge (authoring only). Globe = appears on every version
+       below it; the muted suffix = hidden from students. */
+    .ntt-tab--shared {
+      background: #eef5ff;
+      border-radius: 3px;
+      padding-left: 4px;
+      padding-right: 4px;
+    }
+    .ntt-tab--shared::before {
+      content: "🌐 ";
+    }
+    .ntt-tab--shared::after {
+      content: " 🙈 hidden from students";
+      font-size: 10px;
+      font-weight: normal;
+      color: #6a7686;
+    }
+
     .ntt-tab-panel {
       display: block !important;
       border: 1px solid #c7cdd1;
@@ -668,6 +686,7 @@
       x: x,
       y: y,
       isTab: isTab,
+      isSharedTab: isTab ? tab.classList.contains('ntt-tab--shared') : false,
       isAccordionHeader: isAccordionHeader,
       isComponentRoot: isComponentRoot,
       isInTabs: isInTabs,
@@ -893,6 +912,7 @@
         <div class="ntt-context-menu__section-label">Tabs</div>
         <button type="button" data-ntt-action="insert-tab-before">Insert Tab Before</button>
         <button type="button" data-ntt-action="insert-tab-after">Insert Tab After</button>
+        <button type="button" data-ntt-action="toggle-shared-tab" data-ntt-shared-label>Mark as shared (global) tab</button>
         <button type="button" data-ntt-action="delete-tab" class="is-danger">Delete Tab</button>
       </div>
 
@@ -1007,6 +1027,15 @@
     headingSection.hidden = !options.hasToggleableHeading;
     fileRowSection.hidden = !(options.isInAccordionPanel || options.isOnFileRow);
     tabSection.hidden = !options.isTab;
+    if (options.isTab) {
+      const sharedBtn = tabSection.querySelector('[data-ntt-shared-label]');
+      if (sharedBtn) {
+        sharedBtn.textContent = options.isSharedTab
+          ? 'Unmark shared (global) tab'
+          : 'Mark as shared (global) tab';
+        sharedBtn.classList.toggle('is-current', options.isSharedTab);
+      }
+    }
     accordionSection.hidden = !options.isAccordionHeader;
     tabsPlacementSection.hidden = !options.isInTabs;
     accordionExpandSection.hidden = !options.isInAccordion;
@@ -1096,6 +1125,10 @@
       insertHtml('\n' + getAccordionHtml() + '\n');
       return;
     }
+    if (action === 'toggle-shared-tab') {
+      toggleSharedTab();
+      return;
+    }
     if (action === 'insert-tab-before') {
       insertTabRelativeToCurrent('before');
       return;
@@ -1164,6 +1197,34 @@
     const componentRoot = contextTarget && contextTarget.componentRoot;
     if (!componentRoot) return;
     componentRoot.remove();
+    notifyEditorChanged();
+  }
+
+  // Toggle a tab as the shared ("global") tab. Its content is shown above every
+  // tab below it and it is hidden from students (the runtime applies this on the
+  // published page; here we just stamp the marker class + tooltip). Only one
+  // shared tab per component.
+  function toggleSharedTab() {
+    const tab = contextTarget && contextTarget.tab;
+    const tabsRoot = contextTarget && contextTarget.tabsRoot;
+    if (!tab) return;
+
+    const willShare = !tab.classList.contains('ntt-tab--shared');
+    if (willShare && tabsRoot) {
+      Array.from(tabsRoot.querySelectorAll('.ntt-tab--shared')).forEach(function (other) {
+        other.classList.remove('ntt-tab--shared');
+        other.removeAttribute('title');
+      });
+    }
+    tab.classList.toggle('ntt-tab--shared', willShare);
+    if (willShare) {
+      tab.setAttribute(
+        'title',
+        'Shared (global) tab — its content appears above every version below it, and it is hidden from students.'
+      );
+    } else {
+      tab.removeAttribute('title');
+    }
     notifyEditorChanged();
   }
 

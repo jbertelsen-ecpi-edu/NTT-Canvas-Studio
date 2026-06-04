@@ -124,6 +124,20 @@
   display: none;
 }
 
+/* A tab the runtime hides from the strip (the shared/global tab in player mode). */
+.ntt-tab[hidden] {
+  display: none;
+}
+
+/* Shared/global tab content, lifted out as a persistent block above the active
+   version panel for tabs below the shared tab. Separated from the version-
+   specific content with a rule so the two read as distinct sections. */
+.ntt-tabs-shared {
+  border-bottom: 1px solid #e1e5eb;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.25rem;
+}
+
 /*
  * Placement modifiers (default is top — no class needed).
  *
@@ -246,6 +260,28 @@
   justify-content: flex-end;
   gap: 0.5rem;
   padding: 0.6rem 1rem 0;
+}
+
+/* `display:flex` above overrides the native [hidden] attribute, so re-hide
+   explicitly (used by the tab-view toolbar's hide-when-empty). */
+.ntt-accordion-toolbar[hidden] {
+  display: none;
+}
+
+/* Inside a tabs component, one tab-view toolbar (.ntt-tabs-toolbar) replaces the
+   per-accordion toolbars. Hide any per-accordion toolbar/hint that still gets
+   created (e.g. by a stale theme copy); the tab-view ones are excluded. */
+.ntt-tabs .ntt-accordion-toolbar:not(.ntt-tabs-toolbar),
+.ntt-tabs .ntt-download-hint:not(.ntt-tabs-hint) {
+  display: none;
+}
+
+/* Place the tab-view toolbar/hint in the panel column for vertical placements. */
+.ntt-tabs--placement-start > .ntt-tabs-toolbar,
+.ntt-tabs--placement-start > .ntt-tabs-hint,
+.ntt-tabs--placement-end > .ntt-tabs-toolbar,
+.ntt-tabs--placement-end > .ntt-tabs-hint {
+  grid-column: 2;
 }
 
 .ntt-accordion-toolbar button {

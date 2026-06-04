@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  var VERSION = '0.5.0';
+  var VERSION = '0.6.4';
 
   // True only in the browser-extension copy (content script). The Canvas Theme
   // copy runs in the page's main world where `chrome.runtime.id` is undefined.
@@ -69,18 +69,55 @@
 
     normalizeTabs(root);
 
-    const tabs = Array.from(root.querySelectorAll('.ntt-tab'));
-    const panels = Array.from(root.querySelectorAll('.ntt-tab-panel'));
+    const allTabs = Array.from(root.querySelectorAll('.ntt-tab'));
+    const allPanels = Array.from(root.querySelectorAll('.ntt-tab-panel'));
 
-    if (!tabs.length || !panels.length) return;
-
-    // True when another copy already initialized (and bound listeners): we're
-    // taking over, so skip re-binding to avoid duplicate handlers.
-    const takingOver = priorOwner !== null;
+    if (!allTabs.length || !allPanels.length) return;
 
     // Mark ready only once there's real content, so an early/empty pass can be
     // retried by the observer when Canvas finishes rendering the panels.
     root.setAttribute('data-ntt-tabs-ready', IS_EXTENSION ? 'ext' : '');
+
+    // Shared ("global") tab: an author marks one tab as shared; its content is
+    // shown as a persistent block above the content of every tab positioned
+    // BELOW it. In player mode the shared tab is hidden from the strip and its
+    // panel is lifted out as that block (rendered once — no cloning, no
+    // duplicate IDs). In authoring it stays a normal, editable, badged tab.
+    const sharedTab = allTabs.find(function (t) {
+      return t.classList.contains('ntt-tab--shared');
+    });
+    const sharedIndex = sharedTab ? allTabs.indexOf(sharedTab) : -1;
+
+    let tabs = allTabs;
+    let panels = allPanels;
+    let sharedBlock = null;
+    const belowSharedTabs = new Set();
+
+    if (!isAuthoringMode() && sharedTab) {
+      sharedTab.hidden = true; // drop it from the visible strip
+
+      const sharedPanelId = sharedTab.getAttribute('aria-controls');
+      const sharedPanel = sharedPanelId
+        ? root.querySelector('#' + CSS.escape(sharedPanelId))
+        : null;
+      if (sharedPanel) {
+        sharedPanel.classList.add('ntt-tabs-shared');
+        // Sit it at the top of the panel column, above whichever version panel
+        // is active.
+        const list = root.querySelector('.ntt-tabs-list');
+        if (list && list.nextSibling !== sharedPanel) {
+          root.insertBefore(sharedPanel, list.nextSibling);
+        }
+        sharedBlock = sharedPanel;
+        panels = allPanels.filter(function (p) { return p !== sharedPanel; });
+      }
+
+      // Tabs after the shared one (in document order) receive the block.
+      allTabs.forEach(function (t, i) {
+        if (i > sharedIndex && t !== sharedTab) belowSharedTabs.add(t);
+      });
+      tabs = allTabs.filter(function (t) { return t !== sharedTab; });
+    }
 
     // WAI-ARIA APG: horizontal tabs use Left/Right arrows, vertical tabs use
     // Up/Down. Map both keys to the same "next/prev" action so users get the
@@ -106,34 +143,49 @@
         panel.classList.toggle('is-active', isActive);
         panel.hidden = !isActive;
       });
-    }
 
-    if (!takingOver) {
-      tabs.forEach(function (tab, index) {
-        tab.addEventListener('click', function (event) {
-          // Tab labels are anchors so saved HTML degrades gracefully without
-          // JS — when JS is active we stop the href="#..." jump.
-          event.preventDefault();
-          activateTab(tab);
-          tab.focus();
-        });
+      // The shared block shows only for tabs below the shared tab.
+      if (sharedBlock) sharedBlock.hidden = !belowSharedTabs.has(tab);
 
-        tab.addEventListener('keydown', function (event) {
-          let nextIndex = null;
-
-          if (event.key === nextKey) nextIndex = (index + 1) % tabs.length;
-          if (event.key === prevKey) nextIndex = (index - 1 + tabs.length) % tabs.length;
-          if (event.key === 'Home') nextIndex = 0;
-          if (event.key === 'End') nextIndex = tabs.length - 1;
-
-          if (nextIndex !== null) {
-            event.preventDefault();
-            tabs[nextIndex].focus();
-            activateTab(tabs[nextIndex]);
-          }
-        });
+      // Start every tab with a clean slate: clear any file selections (in the
+      // shared block and all panels) so checks don't carry across tab switches.
+      Array.from(root.querySelectorAll('.ntt-file-row__checkbox')).forEach(function (cb) {
+        cb.checked = false;
       });
     }
+
+    // Bind our handlers even when taking over another copy's init. We can't
+    // remove that copy's listeners, but ours run too and are idempotent — and,
+    // crucially, only ours know how to toggle the shared block. (A stale theme
+    // copy's handler would otherwise re-hide it on every click.) Guard per tab
+    // so we never bind ours twice.
+    tabs.forEach(function (tab, index) {
+      if (tab.__nttTabBound) return;
+      tab.__nttTabBound = true;
+
+      tab.addEventListener('click', function (event) {
+        // Tab labels are anchors so saved HTML degrades gracefully without
+        // JS — when JS is active we stop the href="#..." jump.
+        event.preventDefault();
+        activateTab(tab);
+        tab.focus();
+      });
+
+      tab.addEventListener('keydown', function (event) {
+        let nextIndex = null;
+
+        if (event.key === nextKey) nextIndex = (index + 1) % tabs.length;
+        if (event.key === prevKey) nextIndex = (index - 1 + tabs.length) % tabs.length;
+        if (event.key === 'Home') nextIndex = 0;
+        if (event.key === 'End') nextIndex = tabs.length - 1;
+
+        if (nextIndex !== null) {
+          event.preventDefault();
+          tabs[nextIndex].focus();
+          activateTab(tabs[nextIndex]);
+        }
+      });
+    });
 
     // The first tab is the default "start page" on load. We intentionally do
     // NOT honor a saved aria-selected here: in authoring, clicking a tab to edit
@@ -512,66 +564,21 @@
       .forEach(wrapFileLinkInRow);
   }
 
-  function createAccordionToolbar(root) {
-    if (isAuthoringMode() || !root) return;
+  // --- Shared file-toolbar helpers -----------------------------------------
 
-    // Normally the first copy to build a toolbar wins and the other defers here.
-    // In extension-priority mode, the extension instead replaces any toolbar it
-    // didn't build (e.g. a stale theme copy's), then keeps its own — the source
-    // stamp prevents an observer loop, and the theme copy defers to ours.
-    var existingToolbar = root.querySelector('.ntt-accordion-toolbar');
-    if (existingToolbar) {
-      if (!(IS_EXTENSION && extPriority) ||
-          existingToolbar.getAttribute('data-ntt-source') === 'extension') {
-        return;
-      }
-      existingToolbar.remove();
-      var staleHint = root.querySelector('.ntt-download-hint');
-      if (staleHint && staleHint.parentNode) staleHint.parentNode.removeChild(staleHint);
-    }
+  var POPUP_HINT_KEY = 'nttDownloadPopupHintDismissed';
+  function popupHintDismissed() {
+    try { return window.localStorage.getItem(POPUP_HINT_KEY) === '1'; }
+    catch (e) { return false; }
+  }
 
-    const fileRows = Array.from(root.querySelectorAll('.ntt-file-row'));
-    if (!fileRows.length) return;
-
-    const doc = root.ownerDocument;
-    const toolbar = doc.createElement('div');
-    toolbar.className = 'ntt-accordion-toolbar';
-    // Stamp which copy owns this toolbar so priority mode can tell its own
-    // toolbar from a stale one (see the guard above).
-    toolbar.setAttribute('data-ntt-source', IS_EXTENSION ? 'extension' : 'theme');
-
-    const selectAll = doc.createElement('button');
-    selectAll.type = 'button';
-    selectAll.className = 'ntt-accordion-action';
-    selectAll.textContent = 'Select All';
-    selectAll.setAttribute('aria-label', 'Select all files in this accordion');
-
-    const downloadAll = doc.createElement('button');
-    downloadAll.type = 'button';
-    downloadAll.className = 'ntt-accordion-action';
-    downloadAll.textContent = 'Download Selected';
-    downloadAll.setAttribute('aria-label', 'Download selected files in this accordion');
-
-    toolbar.appendChild(selectAll);
-    toolbar.appendChild(downloadAll);
-
-    const title = root.querySelector('.ntt-component-title');
-    const insertBefore = title ? title.nextSibling : root.firstChild;
-    root.insertBefore(toolbar, insertBefore);
-
-    // Browsers block multiple programmatic downloads as pop-ups/redirects, and
-    // the only signal is a tiny icon in the address bar that instructors miss.
-    // We can't detect or bypass the block from JS, so when a multi-file
-    // download is triggered we surface a clear, dismissible hint pointing them
-    // to that icon. Dismissal is remembered so it stops nagging once understood.
-    const POPUP_HINT_KEY = 'nttDownloadPopupHintDismissed';
-    const popupHintDismissed = function () {
-      try { return window.localStorage.getItem(POPUP_HINT_KEY) === '1'; }
-      catch (e) { return false; }
-    };
-
+  // Browsers block multiple programmatic downloads as pop-ups/redirects, and the
+  // only signal is a tiny address-bar icon instructors miss. We can't detect or
+  // bypass it, so a blocked batch surfaces this dismissible hint. Dismissal is
+  // remembered so it stops nagging once understood.
+  function buildDownloadHint(doc, extraClass) {
     const hint = doc.createElement('div');
-    hint.className = 'ntt-download-hint';
+    hint.className = 'ntt-download-hint' + (extraClass ? ' ' + extraClass : '');
     hint.setAttribute('role', 'status');
     hint.hidden = true;
     hint.innerHTML =
@@ -584,79 +591,222 @@
       '</span>' +
       '<button type="button" class="ntt-download-hint__dismiss" ' +
         'aria-label="Dismiss this message and don\'t show it again">Got it</button>';
-    root.insertBefore(hint, toolbar.nextSibling);
-
     hint.querySelector('.ntt-download-hint__dismiss').addEventListener('click', function () {
       hint.hidden = true;
       try { window.localStorage.setItem(POPUP_HINT_KEY, '1'); } catch (e) {}
     });
+    return hint;
+  }
 
-    const updateDownloadSelectedState = function () {
-      const hasSelected = Array.from(root.querySelectorAll('.ntt-file-row__checkbox')).some(function (checkbox) {
-        return checkbox.checked;
+  // Download each row's file through a hidden iframe (not an anchor click):
+  // Canvas file URLs 302-redirect cross-origin, which the anchor/target approach
+  // exposes as a top-level redirect that Chrome's pop-up blocker suppresses for
+  // all but the first file. An iframe consumes the attachment response without a
+  // top-level navigation, so the blocker never fires. Stagger avoids coalescing.
+  function triggerDownloads(doc, rows, hint) {
+    const hrefs = rows
+      .map(function (row) {
+        const link = row.querySelector('.ntt-file-row__download');
+        return link && link.href ? link.href : null;
+      })
+      .filter(Boolean);
+
+    hrefs.forEach(function (href, index) {
+      setTimeout(function () {
+        const frame = doc.createElement('iframe');
+        frame.style.display = 'none';
+        frame.src = href;
+        doc.body.appendChild(frame);
+        setTimeout(function () {
+          if (frame.parentNode) frame.parentNode.removeChild(frame);
+        }, 60000);
+      }, index * 300);
+    });
+
+    if (hrefs.length > 1 && hint && !popupHintDismissed()) hint.hidden = false;
+  }
+
+  // Build a "Select All / Download Selected" toolbar + hint for a set of file
+  // rows. getRows() returns the in-scope rows at action time (dynamic, so a tab
+  // switch is handled for free). opts.insert(toolbar, hint) places them.
+  function buildFileToolbar(host, getRows, opts) {
+    opts = opts || {};
+    const doc = host.ownerDocument;
+    const scope = opts.ariaScope || 'in this section';
+
+    const toolbar = doc.createElement('div');
+    toolbar.className = 'ntt-accordion-toolbar' + (opts.toolbarClass ? ' ' + opts.toolbarClass : '');
+    // Stamp which copy owns this toolbar so priority mode can tell its own from a
+    // stale one.
+    toolbar.setAttribute('data-ntt-source', IS_EXTENSION ? 'extension' : 'theme');
+
+    const selectAll = doc.createElement('button');
+    selectAll.type = 'button';
+    selectAll.className = 'ntt-accordion-action';
+    selectAll.textContent = 'Select All';
+    selectAll.setAttribute('aria-label', 'Select all files ' + scope);
+
+    const downloadAll = doc.createElement('button');
+    downloadAll.type = 'button';
+    downloadAll.className = 'ntt-accordion-action';
+    downloadAll.textContent = 'Download Selected';
+    downloadAll.setAttribute('aria-label', 'Download selected files ' + scope);
+
+    toolbar.appendChild(selectAll);
+    toolbar.appendChild(downloadAll);
+
+    const hint = buildDownloadHint(doc, opts.hintClass);
+    opts.insert(toolbar, hint);
+
+    const update = function () {
+      const rows = getRows();
+      if (opts.hideWhenEmpty) toolbar.hidden = rows.length === 0;
+      const hasSelected = rows.some(function (row) {
+        const c = row.querySelector('.ntt-file-row__checkbox');
+        return c && c.checked;
       });
       downloadAll.disabled = !hasSelected;
     };
 
-    fileRows.forEach(function (row) {
-      const checkbox = row.querySelector('.ntt-file-row__checkbox');
-      if (checkbox) {
-        checkbox.addEventListener('change', updateDownloadSelectedState);
-      }
-    });
-
-    updateDownloadSelectedState();
-
     selectAll.addEventListener('click', function (event) {
       event.preventDefault();
-      fileRows.forEach(function (row) {
-        const checkbox = row.querySelector('.ntt-file-row__checkbox');
-        if (checkbox) checkbox.checked = true;
+      getRows().forEach(function (row) {
+        const c = row.querySelector('.ntt-file-row__checkbox');
+        if (c) c.checked = true;
       });
-      updateDownloadSelectedState();
+      update();
     });
 
     downloadAll.addEventListener('click', function (event) {
       event.preventDefault();
-      const selectedRows = Array.from(root.querySelectorAll('.ntt-file-row')).filter(function (row) {
-        const checkbox = row.querySelector('.ntt-file-row__checkbox');
-        return checkbox && checkbox.checked;
+      const checked = getRows().filter(function (row) {
+        const c = row.querySelector('.ntt-file-row__checkbox');
+        return c && c.checked;
       });
-      const hrefs = selectedRows
-        .map(function (row) {
-          const link = row.querySelector('.ntt-file-row__download');
-          return link && link.href ? link.href : null;
-        })
-        .filter(Boolean);
-
-      // Drive each download through a hidden iframe rather than an anchor click.
-      // Canvas file URLs 302-redirect to a cross-origin storage host, which the
-      // anchor/target approaches expose as a top-level redirect — Chrome's
-      // "pop-ups and redirects" blocker then suppresses all but the first file.
-      // An iframe consumes the Content-Disposition: attachment response as a
-      // download without any top-level navigation, so the blocker never fires.
-      // A small stagger keeps the browser from coalescing/dropping rapid loads.
-      hrefs.forEach(function (href, index) {
-        setTimeout(function () {
-          const frame = doc.createElement('iframe');
-          frame.style.display = 'none';
-          frame.src = href;
-          doc.body.appendChild(frame);
-          // The download is handed to the browser as soon as the response
-          // headers arrive; the iframe itself is no longer needed afterward.
-          setTimeout(function () {
-            if (frame.parentNode) frame.parentNode.removeChild(frame);
-          }, 60000);
-        }, index * 300);
-      });
-
-      // The first file always gets through; any extras are what the browser
-      // may suppress. Show the hint (unless already dismissed) so a blocked
-      // batch isn't silently reduced to a single file.
-      if (hrefs.length > 1 && !popupHintDismissed()) {
-        hint.hidden = false;
-      }
+      triggerDownloads(doc, checked, hint);
     });
+
+    return { toolbar: toolbar, hint: hint, update: update };
+  }
+
+  // Priority/dedupe guard shared by both toolbar builders: returns true if we
+  // should stop (a toolbar already exists and we shouldn't replace it).
+  function toolbarAlreadyOwned(root, toolbarSelector, hintSelector) {
+    const existing = root.querySelector(toolbarSelector);
+    if (!existing) return false;
+    if (!(IS_EXTENSION && extPriority) ||
+        existing.getAttribute('data-ntt-source') === 'extension') {
+      return true;
+    }
+    existing.remove();
+    const staleHint = root.querySelector(hintSelector);
+    if (staleHint && staleHint.parentNode) staleHint.parentNode.removeChild(staleHint);
+    return false;
+  }
+
+  function createAccordionToolbar(root) {
+    if (isAuthoringMode() || !root) return;
+    // Inside a tabs component the single tab-view toolbar replaces these.
+    if (root.closest('.ntt-tabs')) return;
+    if (toolbarAlreadyOwned(root, '.ntt-accordion-toolbar', '.ntt-download-hint')) return;
+    if (!root.querySelector('.ntt-file-row')) return;
+
+    const built = buildFileToolbar(
+      root,
+      function () { return Array.from(root.querySelectorAll('.ntt-file-row')); },
+      {
+        ariaScope: 'in this accordion',
+        insert: function (toolbar, hint) {
+          const title = root.querySelector('.ntt-component-title');
+          root.insertBefore(toolbar, title ? title.nextSibling : root.firstChild);
+          root.insertBefore(hint, toolbar.nextSibling);
+        }
+      }
+    );
+
+    Array.from(root.querySelectorAll('.ntt-file-row__checkbox')).forEach(function (cb) {
+      cb.addEventListener('change', built.update);
+    });
+    built.update();
+  }
+
+  // Canonical content order inside a tabs component, directly after the tab
+  // strip: the single toolbar, its hint, then the shared/global block, then the
+  // version panels. Enforced idempotently on every pass so it can't be left in
+  // the wrong order by the init/toolbar timing race (the shared block is moved
+  // by initTabs and the toolbar inserted by createTabsToolbar, possibly in
+  // either order across the async priority load).
+  function orderTabsContent(root) {
+    const list = root.querySelector(':scope > .ntt-tabs-list');
+    if (!list) return;
+    const seq = [
+      root.querySelector(':scope > .ntt-tabs-toolbar'),
+      root.querySelector(':scope > .ntt-tabs-hint'),
+      root.querySelector(':scope > .ntt-tabs-shared')
+    ];
+    let anchor = list;
+    seq.forEach(function (el) {
+      if (!el) return;
+      if (anchor.nextSibling !== el) root.insertBefore(el, anchor.nextSibling);
+      anchor = el;
+    });
+  }
+
+  // One toolbar per tabs component, covering every file row currently visible
+  // (the shared/global block plus the active version panel). Per-accordion
+  // toolbars inside tabs are suppressed (here + via CSS for any a stale theme
+  // copy still makes), so the user gets a single set of controls — at the very
+  // top, above both the global and course-specific accordions.
+  function createTabsToolbar(root) {
+    if (isAuthoringMode() || !root) return;
+    if (!root.querySelector('.ntt-file-row')) return;
+
+    let toolbar = root.querySelector(':scope > .ntt-tabs-toolbar');
+    if (toolbar && IS_EXTENSION && extPriority &&
+        toolbar.getAttribute('data-ntt-source') !== 'extension') {
+      toolbar.remove();
+      const sh = root.querySelector(':scope > .ntt-tabs-hint');
+      if (sh && sh.parentNode) sh.parentNode.removeChild(sh);
+      toolbar = null;
+    }
+
+    if (!toolbar) {
+      const visibleRows = function () {
+        return Array.from(root.querySelectorAll('.ntt-file-row')).filter(function (r) {
+          return !r.closest('.ntt-tab-panel[hidden]');
+        });
+      };
+
+      const built = buildFileToolbar(root, visibleRows, {
+        ariaScope: 'in the selected tab',
+        toolbarClass: 'ntt-tabs-toolbar',
+        hintClass: 'ntt-tabs-hint',
+        hideWhenEmpty: true,
+        insert: function (toolbarEl, hint) {
+          const list = root.querySelector(':scope > .ntt-tabs-list');
+          root.insertBefore(toolbarEl, list ? list.nextSibling : root.firstChild);
+          root.insertBefore(hint, toolbarEl.nextSibling);
+        }
+      });
+
+      // Track checkbox changes anywhere in the tabs, and tab switches (mouse or
+      // keyboard), so button state + visibility follow the current view.
+      root.addEventListener('change', function (event) {
+        const t = event.target;
+        if (t && t.classList && t.classList.contains('ntt-file-row__checkbox')) built.update();
+      });
+      const refresh = function (event) {
+        const t = event.target;
+        if (t && t.closest && t.closest('.ntt-tab')) setTimeout(built.update, 0);
+      };
+      root.addEventListener('click', refresh);
+      root.addEventListener('keyup', refresh);
+
+      built.update();
+    }
+
+    // Always re-assert order (cheap + idempotent) so the controls sit at the top.
+    orderTabsContent(root);
   }
 
   // ---------------------------------------------------------------------------
@@ -680,6 +830,7 @@
     document.querySelectorAll('.ntt-accordion').forEach(initAccordion);
     document.querySelectorAll('.ntt-file-row').forEach(decorateFileRow);
     document.querySelectorAll('.ntt-accordion').forEach(createAccordionToolbar);
+    document.querySelectorAll('.ntt-tabs').forEach(createTabsToolbar);
   }
 
   function runInit() {
