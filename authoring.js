@@ -199,6 +199,24 @@
       height: 2px;
     }
 
+    /* Shared/global tab badge (authoring only). Globe = appears on every version
+       below it; the muted suffix = hidden from students. */
+    .ntt-tab--shared {
+      background: #eef5ff;
+      border-radius: 3px;
+      padding-left: 4px;
+      padding-right: 4px;
+    }
+    .ntt-tab--shared::before {
+      content: "🌐 ";
+    }
+    .ntt-tab--shared::after {
+      content: " 🙈 hidden from students";
+      font-size: 10px;
+      font-weight: normal;
+      color: #6a7686;
+    }
+
     .ntt-tab-panel {
       display: block !important;
       border: 1px solid #c7cdd1;
@@ -343,6 +361,28 @@
       font-weight: bold;
       color: #666;
       margin-bottom: 6px;
+    }
+
+    /* Keep authored media within the section bounds (mirrors runtime.css). */
+    .ntt-tab-panel img,
+    .ntt-accordion-panel img,
+    .ntt-tab-panel video,
+    .ntt-accordion-panel video,
+    .ntt-tab-panel iframe,
+    .ntt-accordion-panel iframe {
+      max-width: 100%;
+    }
+    .ntt-tab-panel img,
+    .ntt-accordion-panel img,
+    .ntt-tab-panel video,
+    .ntt-accordion-panel video {
+      height: auto;
+    }
+    .ntt-tab-panel::after,
+    .ntt-accordion-panel::after {
+      content: "";
+      display: block;
+      clear: both;
     }
 
     /* File Download Row — match runtime look so authors see what students
@@ -646,12 +686,14 @@
       x: x,
       y: y,
       isTab: isTab,
+      isSharedTab: isTab ? tab.classList.contains('ntt-tab--shared') : false,
       isAccordionHeader: isAccordionHeader,
       isComponentRoot: isComponentRoot,
       isInTabs: isInTabs,
       tabsPlacement: isInTabs ? getTabsPlacement(tabsRoot) : null,
       isInAccordion: isInAccordion,
       accordionExpand: isInAccordion ? getAccordionExpand(accordionRoot) : null,
+      accordionDefaultView: isInAccordion ? getAccordionDefaultView(accordionRoot) : null,
       inComponent: insideComponent,
       componentWidth: insideComponent ? getComponentWidth(nttComponent) : null,
       componentAlign: insideComponent ? getComponentAlign(nttComponent) : null,
@@ -761,6 +803,45 @@
     notifyEditorChanged();
   }
 
+  const ACCORDION_DEFAULT_CLASSES = {
+    'all-open': 'ntt-accordion--default-all-open',
+    'first-open': 'ntt-accordion--default-first-open',
+    'all-closed': 'ntt-accordion--default-all-closed'
+  };
+
+  function getAccordionDefaultView(root) {
+    if (!root) return null;
+    if (root.classList.contains('ntt-accordion--default-all-open')) return 'all-open';
+    if (root.classList.contains('ntt-accordion--default-first-open')) return 'first-open';
+    if (root.classList.contains('ntt-accordion--default-all-closed')) return 'all-closed';
+    return null;
+  }
+
+  // Set the accordion's default open state on page load. Stamps a class the
+  // runtime honors, and also reflects the state on the items so the editor
+  // preview (header arrows) matches.
+  function setAccordionDefaultView(view) {
+    const root = contextTarget && contextTarget.accordionRoot;
+    if (!root) return;
+    Object.keys(ACCORDION_DEFAULT_CLASSES).forEach(function (key) {
+      root.classList.remove(ACCORDION_DEFAULT_CLASSES[key]);
+    });
+    if (ACCORDION_DEFAULT_CLASSES[view]) {
+      root.classList.add(ACCORDION_DEFAULT_CLASSES[view]);
+    }
+    Array.from(root.querySelectorAll('.ntt-accordion-item')).forEach(function (item, index) {
+      let open;
+      if (view === 'all-open') open = true;
+      else if (view === 'all-closed') open = false;
+      else if (view === 'first-open') open = index === 0;
+      else return;
+      item.classList.toggle('is-open', open);
+      const header = item.querySelector('.ntt-accordion-header');
+      if (header) header.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+    notifyEditorChanged();
+  }
+
   function getComponentAlign(root) {
     if (!root) return 'center';
     if (root.classList.contains('ntt-align-left')) return 'left';
@@ -831,6 +912,7 @@
         <div class="ntt-context-menu__section-label">Tabs</div>
         <button type="button" data-ntt-action="insert-tab-before">Insert Tab Before</button>
         <button type="button" data-ntt-action="insert-tab-after">Insert Tab After</button>
+        <button type="button" data-ntt-action="toggle-shared-tab" data-ntt-shared-label>Mark as shared (global) tab</button>
         <button type="button" data-ntt-action="delete-tab" class="is-danger">Delete Tab</button>
       </div>
 
@@ -853,6 +935,13 @@
         <div class="ntt-context-menu__section-label">Accordion Behavior</div>
         <button type="button" data-ntt-action="set-accordion-expand-single" data-expand="single">Expand Single</button>
         <button type="button" data-ntt-action="set-accordion-expand-multiple" data-expand="multiple">Expand Multiple</button>
+      </div>
+
+      <div class="ntt-context-menu__section" data-ntt-accordion-default-section hidden>
+        <div class="ntt-context-menu__section-label">Default View</div>
+        <button type="button" data-ntt-action="set-accordion-default-all-open" data-default-view="all-open">All Open</button>
+        <button type="button" data-ntt-action="set-accordion-default-first-open" data-default-view="first-open">First Open</button>
+        <button type="button" data-ntt-action="set-accordion-default-all-closed" data-default-view="all-closed">All Closed</button>
       </div>
 
       <div class="ntt-context-menu__section" data-ntt-width-section hidden>
@@ -930,6 +1019,7 @@
     const accordionSection = menu.querySelector('[data-ntt-accordion-section]');
     const tabsPlacementSection = menu.querySelector('[data-ntt-tabs-placement-section]');
     const accordionExpandSection = menu.querySelector('[data-ntt-accordion-expand-section]');
+    const accordionDefaultSection = menu.querySelector('[data-ntt-accordion-default-section]');
     const widthSection = menu.querySelector('[data-ntt-width-section]');
     const alignSection = menu.querySelector('[data-ntt-align-section]');
     const componentSection = menu.querySelector('[data-ntt-component-section]');
@@ -937,9 +1027,19 @@
     headingSection.hidden = !options.hasToggleableHeading;
     fileRowSection.hidden = !(options.isInAccordionPanel || options.isOnFileRow);
     tabSection.hidden = !options.isTab;
+    if (options.isTab) {
+      const sharedBtn = tabSection.querySelector('[data-ntt-shared-label]');
+      if (sharedBtn) {
+        sharedBtn.textContent = options.isSharedTab
+          ? 'Unmark shared (global) tab'
+          : 'Mark as shared (global) tab';
+        sharedBtn.classList.toggle('is-current', options.isSharedTab);
+      }
+    }
     accordionSection.hidden = !options.isAccordionHeader;
     tabsPlacementSection.hidden = !options.isInTabs;
     accordionExpandSection.hidden = !options.isInAccordion;
+    accordionDefaultSection.hidden = !options.isInAccordion;
     widthSection.hidden = !options.inComponent;
     alignSection.hidden = !options.inComponent;
     componentSection.hidden = !options.isComponentRoot;
@@ -970,6 +1070,11 @@
     if (options.isInAccordion) {
       Array.from(accordionExpandSection.querySelectorAll('button[data-expand]')).forEach(function (btn) {
         const isCurrent = btn.getAttribute('data-expand') === options.accordionExpand;
+        btn.classList.toggle('is-current', isCurrent);
+      });
+      // Mark the active default-view button (none marked if unset).
+      Array.from(accordionDefaultSection.querySelectorAll('button[data-default-view]')).forEach(function (btn) {
+        const isCurrent = btn.getAttribute('data-default-view') === options.accordionDefaultView;
         btn.classList.toggle('is-current', isCurrent);
       });
     }
@@ -1020,6 +1125,10 @@
       insertHtml('\n' + getAccordionHtml() + '\n');
       return;
     }
+    if (action === 'toggle-shared-tab') {
+      toggleSharedTab();
+      return;
+    }
     if (action === 'insert-tab-before') {
       insertTabRelativeToCurrent('before');
       return;
@@ -1061,6 +1170,9 @@
     if (action === 'set-align-right') { setComponentAlign('right'); return; }
     if (action === 'set-accordion-expand-single') { setAccordionExpand('single'); return; }
     if (action === 'set-accordion-expand-multiple') { setAccordionExpand('multiple'); return; }
+    if (action === 'set-accordion-default-all-open') { setAccordionDefaultView('all-open'); return; }
+    if (action === 'set-accordion-default-first-open') { setAccordionDefaultView('first-open'); return; }
+    if (action === 'set-accordion-default-all-closed') { setAccordionDefaultView('all-closed'); return; }
     if (action === 'toggle-heading') {
       const heading = contextTarget && contextTarget.toggleableHeading;
       setToggleableHeadingHidden(heading ? !isHeadingHidden(heading) : true);
@@ -1085,6 +1197,34 @@
     const componentRoot = contextTarget && contextTarget.componentRoot;
     if (!componentRoot) return;
     componentRoot.remove();
+    notifyEditorChanged();
+  }
+
+  // Toggle a tab as the shared ("global") tab. Its content is shown above every
+  // tab below it and it is hidden from students (the runtime applies this on the
+  // published page; here we just stamp the marker class + tooltip). Only one
+  // shared tab per component.
+  function toggleSharedTab() {
+    const tab = contextTarget && contextTarget.tab;
+    const tabsRoot = contextTarget && contextTarget.tabsRoot;
+    if (!tab) return;
+
+    const willShare = !tab.classList.contains('ntt-tab--shared');
+    if (willShare && tabsRoot) {
+      Array.from(tabsRoot.querySelectorAll('.ntt-tab--shared')).forEach(function (other) {
+        other.classList.remove('ntt-tab--shared');
+        other.removeAttribute('title');
+      });
+    }
+    tab.classList.toggle('ntt-tab--shared', willShare);
+    if (willShare) {
+      tab.setAttribute(
+        'title',
+        'Shared (global) tab — its content appears above every version below it, and it is hidden from students.'
+      );
+    } else {
+      tab.removeAttribute('title');
+    }
     notifyEditorChanged();
   }
 
@@ -1348,6 +1488,36 @@
   // fullscreen toggle that drops + recreates the iframe) get wired up.
   // ---------------------------------------------------------------------------
 
+  // Heal tab strips the editor has split into multiple `.ntt-tabs-list` blocks
+  // (or left empty tab stubs in). Mirrors normalizeTabs() in runtime.js, but
+  // runs inside the editor doc and reports whether it changed anything so we
+  // can mark the page dirty for re-save. See runtime.js for why the split
+  // breaks the vertical-tabs grid layout.
+  function healTabsInBody(body) {
+    let changed = false;
+    Array.from(body.querySelectorAll('.ntt-tabs')).forEach(function (root) {
+      const lists = Array.from(root.querySelectorAll('.ntt-tabs-list'));
+      if (lists.length > 1) {
+        const primary = lists[0];
+        lists.slice(1).forEach(function (list) {
+          while (list.firstChild) primary.appendChild(list.firstChild);
+          list.remove();
+        });
+        changed = true;
+      }
+      const primaryList = root.querySelector('.ntt-tabs-list');
+      if (primaryList) {
+        Array.from(primaryList.querySelectorAll('.ntt-tab')).forEach(function (tab) {
+          if (!tab.textContent.trim()) {
+            tab.remove();
+            changed = true;
+          }
+        });
+      }
+    });
+    return changed;
+  }
+
   function bindIntegration() {
     getEditableContexts().forEach(function (ctx) {
       const doc = ctx.doc;
@@ -1361,6 +1531,19 @@
           if (event.key === 'Escape') hideContextMenu();
         });
         injectPreviewCss(doc);
+        // One-time heal of editor-damaged tab strips. If it changed anything,
+        // mark the page dirty so the cleaned markup gets saved.
+        if (healTabsInBody(body)) {
+          console.log('[NTT] Healed split/empty tabs');
+          notifyEditorChanged();
+        }
+        // Match the published "first tab is the start page": show the first tab
+        // as selected in the editor too, rather than whichever tab was last
+        // edited. Visual only (no dirty) — the runtime ignores saved selection.
+        Array.from(body.querySelectorAll('.ntt-tabs')).forEach(function (tabsRoot) {
+          const firstTab = tabsRoot.querySelector('.ntt-tab');
+          if (firstTab) activateAuthoringTab(tabsRoot, firstTab);
+        });
         console.log(
           '[NTT] Bound editor integration on',
           doc === document ? 'parent doc' : 'iframe doc'
@@ -1484,10 +1667,77 @@
   }
 
   // ---------------------------------------------------------------------------
+  // "Update available" banner. The background worker checks SharePoint for a
+  // newer extension zip and stores { updateAvailable, latestVersion } in
+  // chrome.storage. Here we surface that as a dismissible banner pinned to the
+  // top of the Canvas page (authoring only) — far more visible than the icon
+  // badge. Dismissal is remembered per-version, so a NEW release shows again.
+  // ---------------------------------------------------------------------------
+
+  const UPDATE_FOLDER_URL = 'https://studentsecpi.sharepoint.com/:f:/r/sites/ntt/Department%20Folders/Production/ID%20Team%20Resources/Canvas%20Browser%20Extension%20for%20Chrome?csf=1&web=1&e=BxSM0P';
+
+  function removeUpdateBanner() {
+    const existing = document.getElementById('ntt-update-banner');
+    if (existing) existing.remove();
+  }
+
+  function renderUpdateBanner(latestVersion) {
+    if (document.getElementById('ntt-update-banner')) return;
+
+    const banner = document.createElement('div');
+    banner.id = 'ntt-update-banner';
+    banner.innerHTML =
+      '<span class="ntt-update-banner__text"><strong>NTT Canvas Editor update available</strong>' +
+      (latestVersion ? ' — v' + latestVersion : '') +
+      '. Download the new version and reload it from <code>chrome://extensions</code>.</span>' +
+      '<a class="ntt-update-banner__link" target="_blank" rel="noopener noreferrer">Open download folder</a>' +
+      '<button type="button" class="ntt-update-banner__dismiss">Dismiss</button>';
+
+    banner.querySelector('.ntt-update-banner__link').href = UPDATE_FOLDER_URL;
+    banner.querySelector('.ntt-update-banner__dismiss').addEventListener('click', function () {
+      removeUpdateBanner();
+      // Remember dismissal for this version so we don't nag again until a newer
+      // one appears.
+      try { chrome.storage.local.set({ dismissedUpdateVersion: latestVersion }); } catch (e) {}
+    });
+
+    document.body.appendChild(banner);
+  }
+
+  function evaluateUpdateBanner() {
+    try {
+      if (!chrome.storage || !chrome.storage.local) return;
+      chrome.storage.local.get(
+        ['updateAvailable', 'latestVersion', 'dismissedUpdateVersion'],
+        function (res) {
+          const show =
+            res && res.updateAvailable && res.latestVersion &&
+            res.latestVersion !== res.dismissedUpdateVersion;
+          if (show) renderUpdateBanner(res.latestVersion);
+          else removeUpdateBanner();
+        }
+      );
+    } catch (e) { /* not an extension context — ignore */ }
+  }
+
+  function startUpdateBannerWatch() {
+    evaluateUpdateBanner();
+    try {
+      chrome.storage.onChanged.addListener(function (changes, area) {
+        if (area !== 'local') return;
+        if (changes.updateAvailable || changes.latestVersion || changes.dismissedUpdateVersion) {
+          evaluateUpdateBanner();
+        }
+      });
+    } catch (e) { /* ignore */ }
+  }
+
+  // ---------------------------------------------------------------------------
   // Boot.
   // ---------------------------------------------------------------------------
 
   createContextMenu();
   createLinkDialog();
   startIntegrationLoop();
+  startUpdateBannerWatch();
 })();

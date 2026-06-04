@@ -124,6 +124,20 @@
   display: none;
 }
 
+/* A tab the runtime hides from the strip (the shared/global tab in player mode). */
+.ntt-tab[hidden] {
+  display: none;
+}
+
+/* Shared/global tab content, lifted out as a persistent block above the active
+   version panel for tabs below the shared tab. Separated from the version-
+   specific content with a rule so the two read as distinct sections. */
+.ntt-tabs-shared {
+  border-bottom: 1px solid #e1e5eb;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.25rem;
+}
+
 /*
  * Placement modifiers (default is top — no class needed).
  *
@@ -248,6 +262,28 @@
   padding: 0.6rem 1rem 0;
 }
 
+/* `display:flex` above overrides the native [hidden] attribute, so re-hide
+   explicitly (used by the tab-view toolbar's hide-when-empty). */
+.ntt-accordion-toolbar[hidden] {
+  display: none;
+}
+
+/* Inside a tabs component, one tab-view toolbar (.ntt-tabs-toolbar) replaces the
+   per-accordion toolbars. Hide any per-accordion toolbar/hint that still gets
+   created (e.g. by a stale theme copy); the tab-view ones are excluded. */
+.ntt-tabs .ntt-accordion-toolbar:not(.ntt-tabs-toolbar),
+.ntt-tabs .ntt-download-hint:not(.ntt-tabs-hint) {
+  display: none;
+}
+
+/* Place the tab-view toolbar/hint in the panel column for vertical placements. */
+.ntt-tabs--placement-start > .ntt-tabs-toolbar,
+.ntt-tabs--placement-start > .ntt-tabs-hint,
+.ntt-tabs--placement-end > .ntt-tabs-toolbar,
+.ntt-tabs--placement-end > .ntt-tabs-hint {
+  grid-column: 2;
+}
+
 .ntt-accordion-toolbar button {
   appearance: none;
   border: 1px solid transparent;
@@ -263,6 +299,63 @@
 .ntt-accordion-toolbar button:hover,
 .ntt-accordion-toolbar button:focus-visible {
   background: #eef5ff;
+  outline: none;
+}
+
+.ntt-download-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  margin: 0.6rem 1rem 0;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid #f0c36d;
+  border-left: 4px solid #e8920b;
+  border-radius: 6px;
+  background: #fff8ec;
+  color: #5a3b00;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+/* The `display: flex` above overrides the native [hidden] attribute, so without
+   this the "Got it" dismiss (which sets hidden=true) leaves the alert visible.
+   The attribute+class selector outranks the rule above and re-hides it. */
+.ntt-download-hint[hidden] {
+  display: none;
+}
+
+.ntt-download-hint__arrow {
+  flex: none;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #e8920b;
+  line-height: 1.3;
+}
+
+.ntt-download-hint__text {
+  flex: 1 1 auto;
+}
+
+.ntt-download-hint__text strong {
+  color: #5a3b00;
+}
+
+.ntt-download-hint__dismiss {
+  flex: none;
+  appearance: none;
+  border: 1px solid #e8920b;
+  background: #ffffff;
+  color: #5a3b00;
+  padding: 0.3rem 0.7rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ntt-download-hint__dismiss:hover,
+.ntt-download-hint__dismiss:focus-visible {
+  background: #fdebcb;
   outline: none;
 }
 
@@ -299,6 +392,36 @@
 
 .ntt-accordion-panel[hidden] {
   display: none;
+}
+
+/*
+ * Keep authored media inside the component bounds. Without max-width an image
+ * wider than the panel either overflows or gets clipped by the accordion's
+ * overflow:hidden; height:auto preserves aspect ratio when it's scaled down.
+ * Floated images are cleared so the panel grows to contain them rather than
+ * letting them spill past the section.
+ */
+.ntt-tab-panel img,
+.ntt-accordion-panel img,
+.ntt-tab-panel video,
+.ntt-accordion-panel video,
+.ntt-tab-panel iframe,
+.ntt-accordion-panel iframe {
+  max-width: 100%;
+}
+
+.ntt-tab-panel img,
+.ntt-accordion-panel img,
+.ntt-tab-panel video,
+.ntt-accordion-panel video {
+  height: auto;
+}
+
+.ntt-tab-panel::after,
+.ntt-accordion-panel::after {
+  content: "";
+  display: block;
+  clear: both;
 }
 
 /*

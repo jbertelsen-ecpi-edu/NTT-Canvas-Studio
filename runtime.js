@@ -1,7 +1,24 @@
 (function () {
   'use strict';
 
-  var VERSION = '0.1.0';
+  var VERSION = '0.6.4';
+
+  // True only in the browser-extension copy (content script). The Canvas Theme
+  // copy runs in the page's main world where `chrome.runtime.id` is undefined.
+  // This lets the extension copy behave differently — notably, take priority
+  // over a stale theme copy when the user opts in via the popup.
+  var IS_EXTENSION = (function () {
+    try { return typeof chrome !== 'undefined' && !!(chrome.runtime && chrome.runtime.id); }
+    catch (e) { return false; }
+  })();
+
+  // When true (extension only, set from the popup's stored toggle), the
+  // extension re-owns the accordion toolbar even if a different copy built one.
+  var extPriority = false;
+
+  // One-shot guard so entering edit mode triggers a single update check per page
+  // load (runInit re-runs via the observer). See maybeCheckForUpdate().
+  var updateCheckRequested = false;
 
   // Dedupe + timing strategy: this file is loaded by BOTH the browser
   // extension (isolated content-script world) and the Canvas Theme upload
@@ -17,17 +34,90 @@
   // Tabs
   // ---------------------------------------------------------------------------
 
+  // Heal structural damage from the rich-text editor before wiring tabs up.
+  // TinyMCE can split the tab strip into several `.ntt-tabs-list` blocks (and
+  // leave an empty, label-less tab stub behind). In vertical placements each
+  // extra list is another column-1 grid item with `grid-row: auto / span 99`,
+  // so the second one is placed ~99 rows down and opens a large empty gap
+  // before the stray tabs. Merge every list back into the first and drop tabs
+  // that have no label. Idempotent: once merged, later passes are no-ops.
+  function normalizeTabs(root) {
+    const lists = Array.from(root.querySelectorAll('.ntt-tabs-list'));
+    if (lists.length > 1) {
+      const primary = lists[0];
+      lists.slice(1).forEach(function (list) {
+        while (list.firstChild) primary.appendChild(list.firstChild);
+        list.remove();
+      });
+    }
+    const primaryList = root.querySelector('.ntt-tabs-list');
+    if (primaryList) {
+      Array.from(primaryList.querySelectorAll('.ntt-tab')).forEach(function (tab) {
+        if (!tab.textContent.trim()) tab.remove();
+      });
+    }
+  }
+
   function initTabs(root) {
-    if (root.hasAttribute('data-ntt-tabs-ready')) return;
+    // Ownership marker: '' = a non-extension (theme) copy initialized this,
+    // 'ext' = the extension copy did. In extension-priority mode we take over a
+    // stale theme copy's init once (so the first-tab default + normalize apply),
+    // exactly like the toolbar override. Without priority it's plain first-wins.
+    const priorOwner = root.getAttribute('data-ntt-tabs-ready');
+    const canOverride = IS_EXTENSION && extPriority;
+    if (priorOwner !== null && (priorOwner === 'ext' || !canOverride)) return;
 
-    const tabs = Array.from(root.querySelectorAll('.ntt-tab'));
-    const panels = Array.from(root.querySelectorAll('.ntt-tab-panel'));
+    normalizeTabs(root);
 
-    if (!tabs.length || !panels.length) return;
+    const allTabs = Array.from(root.querySelectorAll('.ntt-tab'));
+    const allPanels = Array.from(root.querySelectorAll('.ntt-tab-panel'));
+
+    if (!allTabs.length || !allPanels.length) return;
 
     // Mark ready only once there's real content, so an early/empty pass can be
     // retried by the observer when Canvas finishes rendering the panels.
-    root.setAttribute('data-ntt-tabs-ready', '');
+    root.setAttribute('data-ntt-tabs-ready', IS_EXTENSION ? 'ext' : '');
+
+    // Shared ("global") tab: an author marks one tab as shared; its content is
+    // shown as a persistent block above the content of every tab positioned
+    // BELOW it. In player mode the shared tab is hidden from the strip and its
+    // panel is lifted out as that block (rendered once — no cloning, no
+    // duplicate IDs). In authoring it stays a normal, editable, badged tab.
+    const sharedTab = allTabs.find(function (t) {
+      return t.classList.contains('ntt-tab--shared');
+    });
+    const sharedIndex = sharedTab ? allTabs.indexOf(sharedTab) : -1;
+
+    let tabs = allTabs;
+    let panels = allPanels;
+    let sharedBlock = null;
+    const belowSharedTabs = new Set();
+
+    if (!isAuthoringMode() && sharedTab) {
+      sharedTab.hidden = true; // drop it from the visible strip
+
+      const sharedPanelId = sharedTab.getAttribute('aria-controls');
+      const sharedPanel = sharedPanelId
+        ? root.querySelector('#' + CSS.escape(sharedPanelId))
+        : null;
+      if (sharedPanel) {
+        sharedPanel.classList.add('ntt-tabs-shared');
+        // Sit it at the top of the panel column, above whichever version panel
+        // is active.
+        const list = root.querySelector('.ntt-tabs-list');
+        if (list && list.nextSibling !== sharedPanel) {
+          root.insertBefore(sharedPanel, list.nextSibling);
+        }
+        sharedBlock = sharedPanel;
+        panels = allPanels.filter(function (p) { return p !== sharedPanel; });
+      }
+
+      // Tabs after the shared one (in document order) receive the block.
+      allTabs.forEach(function (t, i) {
+        if (i > sharedIndex && t !== sharedTab) belowSharedTabs.add(t);
+      });
+      tabs = allTabs.filter(function (t) { return t !== sharedTab; });
+    }
 
     // WAI-ARIA APG: horizontal tabs use Left/Right arrows, vertical tabs use
     // Up/Down. Map both keys to the same "next/prev" action so users get the
@@ -53,9 +143,26 @@
         panel.classList.toggle('is-active', isActive);
         panel.hidden = !isActive;
       });
+
+      // The shared block shows only for tabs below the shared tab.
+      if (sharedBlock) sharedBlock.hidden = !belowSharedTabs.has(tab);
+
+      // Start every tab with a clean slate: clear any file selections (in the
+      // shared block and all panels) so checks don't carry across tab switches.
+      Array.from(root.querySelectorAll('.ntt-file-row__checkbox')).forEach(function (cb) {
+        cb.checked = false;
+      });
     }
 
+    // Bind our handlers even when taking over another copy's init. We can't
+    // remove that copy's listeners, but ours run too and are idempotent — and,
+    // crucially, only ours know how to toggle the shared block. (A stale theme
+    // copy's handler would otherwise re-hide it on every click.) Guard per tab
+    // so we never bind ours twice.
     tabs.forEach(function (tab, index) {
+      if (tab.__nttTabBound) return;
+      tab.__nttTabBound = true;
+
       tab.addEventListener('click', function (event) {
         // Tab labels are anchors so saved HTML degrades gracefully without
         // JS — when JS is active we stop the href="#..." jump.
@@ -80,12 +187,12 @@
       });
     });
 
-    const activeTab =
-      tabs.find(function (tab) {
-        return tab.getAttribute('aria-selected') === 'true';
-      }) || tabs[0];
-
-    activateTab(activeTab);
+    // The first tab is the default "start page" on load. We intentionally do
+    // NOT honor a saved aria-selected here: in authoring, clicking a tab to edit
+    // its panel marks that tab selected, and we don't want that transient
+    // editing state to become the published landing tab. (A deliberate
+    // non-first default would need its own "set as start page" control.)
+    activateTab(tabs[0]);
   }
 
   // ---------------------------------------------------------------------------
@@ -111,6 +218,15 @@
     // multiple (each item toggles independently).
     const expandSingle = root.classList.contains('ntt-accordion--expand-single');
 
+    // Default View (set via the authoring context menu): the initial open state
+    // on page load. When set, it takes precedence over the authored per-item
+    // is-open AND over the player-mode "auto-open sections with file rows".
+    const defaultView =
+      root.classList.contains('ntt-accordion--default-all-open') ? 'all-open' :
+      root.classList.contains('ntt-accordion--default-first-open') ? 'first-open' :
+      root.classList.contains('ntt-accordion--default-all-closed') ? 'all-closed' :
+      null;
+
     function setOpen(item, isOpen) {
       const header = item.querySelector('.ntt-accordion-header');
       const panelId = header && header.getAttribute('aria-controls');
@@ -125,18 +241,29 @@
     // first item that's marked open, and auto-open any section containing a
     // download file row when rendering in player mode.
     let firstOpenSeen = false;
-    items.forEach(function (item) {
+    items.forEach(function (item, index) {
       const header = item.querySelector('.ntt-accordion-header');
-      let isOpen = Boolean(
-        item.classList.contains('is-open') ||
-          (header && header.getAttribute('aria-expanded') === 'true')
-      );
+      let isOpen;
 
-      if (!isOpen && !isAuthoringMode()) {
-        const panelId = header && header.getAttribute('aria-controls');
-        const panel = panelId ? root.querySelector('#' + CSS.escape(panelId)) : null;
-        if (panel && panel.querySelector('.ntt-file-row')) {
-          isOpen = true;
+      if (defaultView === 'all-open') {
+        isOpen = true;
+      } else if (defaultView === 'all-closed') {
+        isOpen = false;
+      } else if (defaultView === 'first-open') {
+        isOpen = index === 0;
+      } else {
+        // No explicit default: honor the authored state, and (player mode only)
+        // auto-open any section that contains a download file row.
+        isOpen = Boolean(
+          item.classList.contains('is-open') ||
+            (header && header.getAttribute('aria-expanded') === 'true')
+        );
+        if (!isOpen && !isAuthoringMode()) {
+          const panelId = header && header.getAttribute('aria-controls');
+          const panel = panelId ? root.querySelector('#' + CSS.escape(panelId)) : null;
+          if (panel && panel.querySelector('.ntt-file-row')) {
+            isOpen = true;
+          }
         }
       }
 
@@ -437,80 +564,249 @@
       .forEach(wrapFileLinkInRow);
   }
 
-  function createAccordionToolbar(root) {
-    if (isAuthoringMode() || !root) return;
-    if (root.querySelector('.ntt-accordion-toolbar')) return;
+  // --- Shared file-toolbar helpers -----------------------------------------
 
-    const fileRows = Array.from(root.querySelectorAll('.ntt-file-row'));
-    if (!fileRows.length) return;
+  var POPUP_HINT_KEY = 'nttDownloadPopupHintDismissed';
+  function popupHintDismissed() {
+    try { return window.localStorage.getItem(POPUP_HINT_KEY) === '1'; }
+    catch (e) { return false; }
+  }
 
-    const doc = root.ownerDocument;
+  // Browsers block multiple programmatic downloads as pop-ups/redirects, and the
+  // only signal is a tiny address-bar icon instructors miss. We can't detect or
+  // bypass it, so a blocked batch surfaces this dismissible hint. Dismissal is
+  // remembered so it stops nagging once understood.
+  function buildDownloadHint(doc, extraClass) {
+    const hint = doc.createElement('div');
+    hint.className = 'ntt-download-hint' + (extraClass ? ' ' + extraClass : '');
+    hint.setAttribute('role', 'status');
+    hint.hidden = true;
+    hint.innerHTML =
+      '<span class="ntt-download-hint__arrow" aria-hidden="true">↗</span>' +
+      '<span class="ntt-download-hint__text">' +
+        '<strong>Only one file downloaded?</strong> Your browser blocked the rest. ' +
+        'Click the blocked-content icon near the top of the address bar (shown above), ' +
+        'choose <em>Always allow pop-ups and redirects from this site</em>, then click ' +
+        '<strong>Download Selected</strong> again.' +
+      '</span>' +
+      '<button type="button" class="ntt-download-hint__dismiss" ' +
+        'aria-label="Dismiss this message and don\'t show it again">Got it</button>';
+    hint.querySelector('.ntt-download-hint__dismiss').addEventListener('click', function () {
+      hint.hidden = true;
+      try { window.localStorage.setItem(POPUP_HINT_KEY, '1'); } catch (e) {}
+    });
+    return hint;
+  }
+
+  // Download each row's file through a hidden iframe (not an anchor click):
+  // Canvas file URLs 302-redirect cross-origin, which the anchor/target approach
+  // exposes as a top-level redirect that Chrome's pop-up blocker suppresses for
+  // all but the first file. An iframe consumes the attachment response without a
+  // top-level navigation, so the blocker never fires. Stagger avoids coalescing.
+  function triggerDownloads(doc, rows, hint) {
+    const hrefs = rows
+      .map(function (row) {
+        const link = row.querySelector('.ntt-file-row__download');
+        return link && link.href ? link.href : null;
+      })
+      .filter(Boolean);
+
+    hrefs.forEach(function (href, index) {
+      setTimeout(function () {
+        const frame = doc.createElement('iframe');
+        frame.style.display = 'none';
+        frame.src = href;
+        doc.body.appendChild(frame);
+        setTimeout(function () {
+          if (frame.parentNode) frame.parentNode.removeChild(frame);
+        }, 60000);
+      }, index * 300);
+    });
+
+    if (hrefs.length > 1 && hint && !popupHintDismissed()) hint.hidden = false;
+  }
+
+  // Build a "Select All / Download Selected" toolbar + hint for a set of file
+  // rows. getRows() returns the in-scope rows at action time (dynamic, so a tab
+  // switch is handled for free). opts.insert(toolbar, hint) places them.
+  function buildFileToolbar(host, getRows, opts) {
+    opts = opts || {};
+    const doc = host.ownerDocument;
+    const scope = opts.ariaScope || 'in this section';
+
     const toolbar = doc.createElement('div');
-    toolbar.className = 'ntt-accordion-toolbar';
+    toolbar.className = 'ntt-accordion-toolbar' + (opts.toolbarClass ? ' ' + opts.toolbarClass : '');
+    // Stamp which copy owns this toolbar so priority mode can tell its own from a
+    // stale one.
+    toolbar.setAttribute('data-ntt-source', IS_EXTENSION ? 'extension' : 'theme');
 
     const selectAll = doc.createElement('button');
     selectAll.type = 'button';
     selectAll.className = 'ntt-accordion-action';
     selectAll.textContent = 'Select All';
-    selectAll.setAttribute('aria-label', 'Select all files in this accordion');
+    selectAll.setAttribute('aria-label', 'Select all files ' + scope);
 
     const downloadAll = doc.createElement('button');
     downloadAll.type = 'button';
     downloadAll.className = 'ntt-accordion-action';
     downloadAll.textContent = 'Download Selected';
-    downloadAll.setAttribute('aria-label', 'Download selected files in this accordion');
+    downloadAll.setAttribute('aria-label', 'Download selected files ' + scope);
 
     toolbar.appendChild(selectAll);
     toolbar.appendChild(downloadAll);
 
-    const title = root.querySelector('.ntt-component-title');
-    const insertBefore = title ? title.nextSibling : root.firstChild;
-    root.insertBefore(toolbar, insertBefore);
+    const hint = buildDownloadHint(doc, opts.hintClass);
+    opts.insert(toolbar, hint);
 
-    const updateDownloadSelectedState = function () {
-      const hasSelected = Array.from(root.querySelectorAll('.ntt-file-row__checkbox')).some(function (checkbox) {
-        return checkbox.checked;
+    const update = function () {
+      const rows = getRows();
+      if (opts.hideWhenEmpty) toolbar.hidden = rows.length === 0;
+      const hasSelected = rows.some(function (row) {
+        const c = row.querySelector('.ntt-file-row__checkbox');
+        return c && c.checked;
       });
       downloadAll.disabled = !hasSelected;
     };
 
-    fileRows.forEach(function (row) {
-      const checkbox = row.querySelector('.ntt-file-row__checkbox');
-      if (checkbox) {
-        checkbox.addEventListener('change', updateDownloadSelectedState);
-      }
-    });
-
-    updateDownloadSelectedState();
-
     selectAll.addEventListener('click', function (event) {
       event.preventDefault();
-      fileRows.forEach(function (row) {
-        const checkbox = row.querySelector('.ntt-file-row__checkbox');
-        if (checkbox) checkbox.checked = true;
+      getRows().forEach(function (row) {
+        const c = row.querySelector('.ntt-file-row__checkbox');
+        if (c) c.checked = true;
       });
-      updateDownloadSelectedState();
+      update();
     });
 
     downloadAll.addEventListener('click', function (event) {
       event.preventDefault();
-      const selectedRows = Array.from(root.querySelectorAll('.ntt-file-row')).filter(function (row) {
-        const checkbox = row.querySelector('.ntt-file-row__checkbox');
-        return checkbox && checkbox.checked;
+      const checked = getRows().filter(function (row) {
+        const c = row.querySelector('.ntt-file-row__checkbox');
+        return c && c.checked;
       });
-      selectedRows.forEach(function (row) {
-        const link = row.querySelector('.ntt-file-row__download');
-        if (!link || !link.href) return;
-        const anchor = doc.createElement('a');
-        anchor.href = link.href;
-        anchor.target = '_blank';
-        anchor.rel = 'noopener noreferrer';
-        anchor.style.display = 'none';
-        doc.body.appendChild(anchor);
-        anchor.click();
-        doc.body.removeChild(anchor);
-      });
+      triggerDownloads(doc, checked, hint);
     });
+
+    return { toolbar: toolbar, hint: hint, update: update };
+  }
+
+  // Priority/dedupe guard shared by both toolbar builders: returns true if we
+  // should stop (a toolbar already exists and we shouldn't replace it).
+  function toolbarAlreadyOwned(root, toolbarSelector, hintSelector) {
+    const existing = root.querySelector(toolbarSelector);
+    if (!existing) return false;
+    if (!(IS_EXTENSION && extPriority) ||
+        existing.getAttribute('data-ntt-source') === 'extension') {
+      return true;
+    }
+    existing.remove();
+    const staleHint = root.querySelector(hintSelector);
+    if (staleHint && staleHint.parentNode) staleHint.parentNode.removeChild(staleHint);
+    return false;
+  }
+
+  function createAccordionToolbar(root) {
+    if (isAuthoringMode() || !root) return;
+    // Inside a tabs component the single tab-view toolbar replaces these.
+    if (root.closest('.ntt-tabs')) return;
+    if (toolbarAlreadyOwned(root, '.ntt-accordion-toolbar', '.ntt-download-hint')) return;
+    if (!root.querySelector('.ntt-file-row')) return;
+
+    const built = buildFileToolbar(
+      root,
+      function () { return Array.from(root.querySelectorAll('.ntt-file-row')); },
+      {
+        ariaScope: 'in this accordion',
+        insert: function (toolbar, hint) {
+          const title = root.querySelector('.ntt-component-title');
+          root.insertBefore(toolbar, title ? title.nextSibling : root.firstChild);
+          root.insertBefore(hint, toolbar.nextSibling);
+        }
+      }
+    );
+
+    Array.from(root.querySelectorAll('.ntt-file-row__checkbox')).forEach(function (cb) {
+      cb.addEventListener('change', built.update);
+    });
+    built.update();
+  }
+
+  // Canonical content order inside a tabs component, directly after the tab
+  // strip: the single toolbar, its hint, then the shared/global block, then the
+  // version panels. Enforced idempotently on every pass so it can't be left in
+  // the wrong order by the init/toolbar timing race (the shared block is moved
+  // by initTabs and the toolbar inserted by createTabsToolbar, possibly in
+  // either order across the async priority load).
+  function orderTabsContent(root) {
+    const list = root.querySelector(':scope > .ntt-tabs-list');
+    if (!list) return;
+    const seq = [
+      root.querySelector(':scope > .ntt-tabs-toolbar'),
+      root.querySelector(':scope > .ntt-tabs-hint'),
+      root.querySelector(':scope > .ntt-tabs-shared')
+    ];
+    let anchor = list;
+    seq.forEach(function (el) {
+      if (!el) return;
+      if (anchor.nextSibling !== el) root.insertBefore(el, anchor.nextSibling);
+      anchor = el;
+    });
+  }
+
+  // One toolbar per tabs component, covering every file row currently visible
+  // (the shared/global block plus the active version panel). Per-accordion
+  // toolbars inside tabs are suppressed (here + via CSS for any a stale theme
+  // copy still makes), so the user gets a single set of controls — at the very
+  // top, above both the global and course-specific accordions.
+  function createTabsToolbar(root) {
+    if (isAuthoringMode() || !root) return;
+    if (!root.querySelector('.ntt-file-row')) return;
+
+    let toolbar = root.querySelector(':scope > .ntt-tabs-toolbar');
+    if (toolbar && IS_EXTENSION && extPriority &&
+        toolbar.getAttribute('data-ntt-source') !== 'extension') {
+      toolbar.remove();
+      const sh = root.querySelector(':scope > .ntt-tabs-hint');
+      if (sh && sh.parentNode) sh.parentNode.removeChild(sh);
+      toolbar = null;
+    }
+
+    if (!toolbar) {
+      const visibleRows = function () {
+        return Array.from(root.querySelectorAll('.ntt-file-row')).filter(function (r) {
+          return !r.closest('.ntt-tab-panel[hidden]');
+        });
+      };
+
+      const built = buildFileToolbar(root, visibleRows, {
+        ariaScope: 'in the selected tab',
+        toolbarClass: 'ntt-tabs-toolbar',
+        hintClass: 'ntt-tabs-hint',
+        hideWhenEmpty: true,
+        insert: function (toolbarEl, hint) {
+          const list = root.querySelector(':scope > .ntt-tabs-list');
+          root.insertBefore(toolbarEl, list ? list.nextSibling : root.firstChild);
+          root.insertBefore(hint, toolbarEl.nextSibling);
+        }
+      });
+
+      // Track checkbox changes anywhere in the tabs, and tab switches (mouse or
+      // keyboard), so button state + visibility follow the current view.
+      root.addEventListener('change', function (event) {
+        const t = event.target;
+        if (t && t.classList && t.classList.contains('ntt-file-row__checkbox')) built.update();
+      });
+      const refresh = function (event) {
+        const t = event.target;
+        if (t && t.closest && t.closest('.ntt-tab')) setTimeout(built.update, 0);
+      };
+      root.addEventListener('click', refresh);
+      root.addEventListener('keyup', refresh);
+
+      built.update();
+    }
+
+    // Always re-assert order (cheap + idempotent) so the controls sit at the top.
+    orderTabsContent(root);
   }
 
   // ---------------------------------------------------------------------------
@@ -534,6 +830,7 @@
     document.querySelectorAll('.ntt-accordion').forEach(initAccordion);
     document.querySelectorAll('.ntt-file-row').forEach(decorateFileRow);
     document.querySelectorAll('.ntt-accordion').forEach(createAccordionToolbar);
+    document.querySelectorAll('.ntt-tabs').forEach(createTabsToolbar);
   }
 
   function runInit() {
@@ -545,6 +842,22 @@
     } catch (err) {
       // Never let one failure wedge the page or stop the observer.
       if (window.console && console.error) console.error('[NTT] init error', err);
+    }
+    maybeCheckForUpdate();
+  }
+
+  // Entering Canvas edit mode is the moment an author is actively working — a
+  // good, traffic-free trigger to ask the background worker whether a newer
+  // extension zip has been uploaded to SharePoint. Content scripts can't fetch
+  // SharePoint cross-origin, so we just message the worker (it does the fetch).
+  // Extension-only, and once per page load.
+  function maybeCheckForUpdate() {
+    if (updateCheckRequested || !IS_EXTENSION || !isAuthoringMode()) return;
+    updateCheckRequested = true;
+    try {
+      chrome.runtime.sendMessage({ type: 'CHECK_UPDATE' });
+    } catch (e) {
+      // Service worker asleep or context gone — harmless; next page load retries.
     }
   }
 
@@ -567,7 +880,40 @@
     observer.observe(document.documentElement, { childList: true, subtree: true });
   }
 
+  // Extension-only bridge to the popup: read the priority toggle, react when it
+  // changes, and answer status queries. The Canvas Theme copy has no `chrome`,
+  // so this whole block is a no-op there.
+  function setupExtensionBridge() {
+    if (!IS_EXTENSION) return;
+    try {
+      chrome.storage.local.get('nttExtensionPriority', function (res) {
+        extPriority = !!(res && res.nttExtensionPriority);
+        // Re-run so we take over the toolbar now that the (async) flag is known.
+        if (extPriority) runInit();
+      });
+      chrome.storage.onChanged.addListener(function (changes, area) {
+        if (area !== 'local' || !changes.nttExtensionPriority) return;
+        extPriority = !!changes.nttExtensionPriority.newValue;
+        // Turning it ON takes over live; turning it OFF applies on next reload.
+        if (extPriority) runInit();
+      });
+      chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
+        if (msg && msg.type === 'NTT_STATUS') {
+          sendResponse({
+            version: VERSION,
+            isExtension: true,
+            overriding: extPriority
+          });
+        }
+        return true;
+      });
+    } catch (e) {
+      if (window.console && console.error) console.error('[NTT] extension bridge error', e);
+    }
+  }
+
   // Run now, again at the usual lifecycle points, and whenever the DOM changes.
+  setupExtensionBridge();
   runInit();
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', runInit);
