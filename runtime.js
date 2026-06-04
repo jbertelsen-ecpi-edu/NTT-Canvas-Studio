@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  var VERSION = '0.8.2';
+  var VERSION = '0.8.3';
 
   // True only in the browser-extension copy (content script). The Canvas Theme
   // copy runs in the page's main world where `chrome.runtime.id` is undefined.
@@ -216,6 +216,35 @@
     const nextKey = isVertical ? 'ArrowDown' : 'ArrowRight';
     const prevKey = isVertical ? 'ArrowUp' : 'ArrowLeft';
 
+    // Position the shared block for the active tab. If the author dropped an
+    // anchor (`[data-ntt-shared-anchor]`) inside that tab's panel, inject the
+    // block there (e.g. after the course header + onboarding); otherwise fall
+    // back to the top of the panel column (original behavior). Tabs that don't
+    // receive the shared content get it hidden. One node, moved — never cloned.
+    function placeSharedBlock(tab) {
+      if (!sharedBlock) return;
+      if (!belowSharedTabs.has(tab)) {
+        sharedBlock.hidden = true;
+        return;
+      }
+      sharedBlock.hidden = false;
+
+      const panelId = tab.getAttribute('aria-controls');
+      const panel = panelId ? root.querySelector('#' + CSS.escape(panelId)) : null;
+      const anchor = panel ? panel.querySelector('[data-ntt-shared-anchor]') : null;
+
+      if (anchor) {
+        if (anchor.previousElementSibling !== sharedBlock) {
+          anchor.parentNode.insertBefore(sharedBlock, anchor);
+        }
+      } else {
+        const list = root.querySelector('.ntt-tabs-list');
+        if (list && list.nextSibling !== sharedBlock) {
+          root.insertBefore(sharedBlock, list.nextSibling);
+        }
+      }
+    }
+
     function activateTab(tab) {
       const targetId = tab.getAttribute('aria-controls');
 
@@ -232,8 +261,8 @@
         panel.hidden = !isActive;
       });
 
-      // The shared block shows only for tabs below the shared tab.
-      if (sharedBlock) sharedBlock.hidden = !belowSharedTabs.has(tab);
+      // Show + position the shared block for this tab (anchor-aware).
+      placeSharedBlock(tab);
 
       // Start every tab with a clean slate: clear any file selections (in the
       // shared block and all panels) so checks don't carry across tab switches.

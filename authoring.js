@@ -260,6 +260,26 @@
       color: #6a7686;
     }
 
+    /* Shared-assets anchor: where the shared (global) block will be injected at
+       runtime. Shown here as a labeled placeholder bar so the author sees the
+       drop point; hidden from students by runtime.css. */
+    .ntt-shared-anchor {
+      display: block;
+      margin: 10px 0;
+      padding: 6px 10px;
+      border: 1px dashed #0b2f57;
+      border-radius: 4px;
+      background: #eef5ff;
+      color: #0b2f57;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .ntt-shared-anchor::before {
+      content: "⬇ ";
+    }
+
     .ntt-tab-panel {
       display: block !important;
       border: 1px solid #c7cdd1;
@@ -578,6 +598,14 @@
 `;
   }
 
+  // Position marker for the shared (global) tab's content. Carries label text
+  // (so TinyMCE won't prune it as an empty block) and contenteditable=false so
+  // authors don't type into it. The runtime moves the shared block here and
+  // hides this marker; in the editor it renders as a labeled placeholder bar.
+  function getSharedAnchorHtml() {
+    return '<div class="ntt-shared-anchor" data-ntt-shared-anchor contenteditable="false">Shared (global) assets inject here</div>';
+  }
+
   function getFileRowHtml() {
     const uid = 'ntt-file-' + Date.now();
     const today = new Date().toISOString().slice(0, 10);
@@ -803,6 +831,7 @@
       componentWidth: insideComponent ? getComponentWidth(nttComponent) : null,
       componentAlign: insideComponent ? getComponentAlign(nttComponent) : null,
       canInsert: canInsert,
+      isInTabPanel: inTabPanel,
       hasToggleableHeading: hasToggleableHeading,
       headingHidden: hasToggleableHeading ? isHeadingHidden(toggleableHeading) : false,
       isInAccordionPanel: isInAccordionPanel,
@@ -1004,6 +1033,7 @@
         <div class="ntt-context-menu__section-label">Insert</div>
         <button type="button" data-ntt-action="insert-tabs">Insert Tabs</button>
         <button type="button" data-ntt-action="insert-accordion">Insert Accordion</button>
+        <button type="button" data-ntt-action="insert-shared-anchor" data-ntt-shared-anchor-btn>Insert shared-assets placeholder</button>
       </div>
 
       <div class="ntt-context-menu__section" data-ntt-heading-section hidden>
@@ -1142,6 +1172,10 @@
     const alignSection = menu.querySelector('[data-ntt-align-section]');
     const componentSection = menu.querySelector('[data-ntt-component-section]');
     insertSection.hidden = !options.canInsert;
+    // The shared-assets placeholder only makes sense inside a tab panel (where
+    // the shared block can be injected). Hide it in the generic insert context.
+    const anchorBtn = insertSection.querySelector('[data-ntt-shared-anchor-btn]');
+    if (anchorBtn) anchorBtn.hidden = !options.isInTabPanel;
     headingSection.hidden = !options.hasToggleableHeading;
     fileRowSection.hidden = !(options.isInAccordionPanel || options.isOnFileRow);
     tabSection.hidden = !options.isTab;
@@ -1258,6 +1292,10 @@
     }
     if (action === 'insert-accordion') {
       insertHtml('\n' + getAccordionHtml() + '\n');
+      return;
+    }
+    if (action === 'insert-shared-anchor') {
+      insertHtml(getSharedAnchorHtml());
       return;
     }
     if (action === 'toggle-shared-tab') {
