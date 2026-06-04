@@ -207,6 +207,51 @@ them) and never to edit *below* it. The byte-for-byte self-check verifies the ba
 the post-header offset, and step 2 above strips this header on resync. To change the
 wording, edit the `$header` here-string in `build-theme.ps1`.
 
+## Canvas release-cycle watch (Beta is your free early warning)
+
+Canvas ships on a regular cadence (roughly every 3–4 weeks). You get **two
+warnings** before a release reaches your production instance, and **both are
+available to you, not just to vendors like CidiLabs.** Using them is the
+cheapest, highest-leverage way to keep this tool from breaking in front of IDDs —
+it converts "discovered in production" into "caught in beta the week before."
+
+**1. Release notes (~2–3 weeks ahead).** Subscribe so they come to you:
+- In the **Canvas Community**, open the **Release Notes** area and **Follow /
+  subscribe** to it (email + RSS). How-to: Canvas's *Canvas Notifications* KB —
+  <https://community.instructure.com/en/kb/articles/387041-canvas-notifications>.
+- The **Canvas Release Schedule** page lists the exact Beta and Production dates
+  for each cycle.
+- When notes arrive, scan for anything touching the **Rich Content Editor / "New
+  RCE" / TinyMCE**, page rendering, or global **Theme/CSS/JS** behavior — those
+  are what hit §1–§3 and §5 above. Most releases won't mention any of these; the
+  ones that do are your cue to test carefully.
+
+**2. Beta environment (~1 week ahead).** Your instance has a beta twin:
+- **URL:** `https://ntt.beta.instructure.com` (same login as production). It's a
+  **weekly-refreshed copy of production** — anything you change there is wiped on
+  the next refresh and **never affects production**, so it's safe to experiment.
+- Beta receives the upcoming release about a week before production, so it's
+  where you confirm whether the new Canvas breaks the current integration.
+
+**Ritual each cycle (during the beta week):**
+1. Skim the release notes for RCE / editor / theme items.
+2. In **beta**, run the 5-minute smoke test below.
+3. If something breaks, fix on a branch, **re-test in beta**, and release to
+   production before the prod date.
+
+**Two gotchas specific to this tool:**
+- **The extension won't load on beta out of the box.** Its content script matches
+  only `https://ntt.instructure.com/...` (see §6 / [manifest.json](manifest.json)) —
+  the **beta subdomain isn't matched**, so the extension is inert on beta until you
+  add `https://ntt.beta.instructure.com/*` to `matches` *and* `host_permissions`
+  (a throwaway beta build, or a permanent extra match line). Without this you'll
+  wrongly conclude "it works in beta."
+- **The Theme copy is already on beta after the refresh** (beta copies production,
+  theme included), so you can smoke-test the *current* integration immediately. To
+  validate a *fix* before production, upload the candidate
+  `dist/NTTcanvasUI.<date>.css` / `runtime.<date>.js` to **beta's** Theme Editor
+  first.
+
 ## After any Canvas (or Chrome) release: 5-minute smoke test
 
 Do this whenever Canvas announces an RCE/editor change, or when a break is reported:
