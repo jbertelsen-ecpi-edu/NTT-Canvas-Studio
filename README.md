@@ -10,8 +10,9 @@ Canvas pages, plus an authoring extension that lets editors build them.
 | `runtime.js` / `runtime.css` | Render + behave the components on a published page. **Single source of truth.** |
 | `authoring.js` / `authoring.css` | Right-click authoring UI inside the Canvas rich-content editor. |
 | `manifest.json` | Browser-extension manifest (dev tooling). |
-| `NTTcanvasUI.20190225.css` | Pristine institutional Canvas Theme CSS. **Never edited** — base + rollback artifact. |
+| `NTTcanvasUI.20190225.css` | Snapshot of NTT's institutional Canvas Theme CSS — the build base + rollback artifact. Re-synced from the live theme before a build (see `MAINTENANCE.md`); never hand-edited to add component styles. |
 | `build-theme.ps1` | Produces the upload bundle in `dist/` (see below). |
+| `MAINTENANCE.md` | Canvas/TinyMCE coupling map, breakage triage, and the safe theme-update (base resync) procedure. |
 
 ## Two delivery channels, one source
 
@@ -82,8 +83,13 @@ JS slot. Apply.
 
 ### Notes & gotchas
 
-- **Never hand-edit the Theme CSS in Canvas.** Always edit `runtime.css` and
-  rebuild — the base file is preserved by the build, not by manual care.
+- **Never hand-edit the *component* styles in the Theme CSS.** Always edit
+  `runtime.css` and rebuild — the components block is regenerated every build.
+- **If NTT changes the *institutional* base** (the part above the components
+  banner in the live Theme CSS), re-sync the repo base from live *before* your
+  next `build-theme.ps1`, or the rebuild appends to a stale snapshot and
+  silently overwrites their change. Full procedure + coupling/breakage map:
+  **`MAINTENANCE.md`** ("Updating the Theme CSS safely").
 - Theme JS/CSS load on **every** Canvas page; keep the runtime cheap and
   error-safe (it already no-ops when no components are present).
 - The desktop Theme upload does **not** run in the Canvas iOS/Android apps. If
