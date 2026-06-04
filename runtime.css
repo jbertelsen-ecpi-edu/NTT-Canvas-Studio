@@ -80,10 +80,19 @@
   color: #2d3b45 !important;
   cursor: pointer;
   font: inherit;
-  font-weight: 500;
+  font-weight: 700;
   border-radius: 6px;
   text-decoration: none !important;
   transition: background-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+/* Tabs must read identically regardless of the inline markup the editor leaves
+   inside individual labels — a stray <strong>, a <span style="color:…">, etc.
+   Force inner nodes to inherit the tab's own weight and color so one tab can't
+   drift lighter/darker than its siblings (e.g. an un-bolded "RESOURCES"). */
+.ntt-tab * {
+  color: inherit !important;
+  font-weight: inherit !important;
 }
 
 /* Hover: a soft neutral fill — transient "you could go here". Deliberately
@@ -116,7 +125,7 @@
    color-mix gives a faint same-hue fill without a second color to maintain. */
 .ntt-tab.is-active {
   color: var(--ntt-tab-group-color, #002855) !important;
-  font-weight: 600;
+  font-weight: 700;
   background: color-mix(in srgb, var(--ntt-tab-group-color, #002855) 8%, transparent);
   /* !important so the box survives the :focus reset above when the active tab
      is also focused (which, in this widget, it always is once clicked). */

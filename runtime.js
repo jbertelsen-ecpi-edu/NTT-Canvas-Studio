@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  var VERSION = '0.8.0';
+  var VERSION = '0.8.1';
 
   // True only in the browser-extension copy (content script). The Canvas Theme
   // copy runs in the page's main world where `chrome.runtime.id` is undefined.
@@ -95,13 +95,33 @@
     });
   }
 
+  // Lift any tab the editor nested inside a wrapper (e.g. it wrapped the <a> in
+  // a `<span style="color:…">`) up to be a direct child of the list. A wrapped
+  // tab isn't a flex item, so it renders inline — its left-accent only spans the
+  // text line height (a short bar) instead of the full padded box, and it sits
+  // off from its siblings. Idempotent: tabs already at top level are skipped.
+  function unwrapNestedTabs(list) {
+    Array.from(list.querySelectorAll('.ntt-tab')).forEach(function (tab) {
+      if (tab.parentNode === list) return;
+      var wrapper = tab;
+      while (wrapper.parentNode && wrapper.parentNode !== list) {
+        wrapper = wrapper.parentNode;
+      }
+      if (wrapper.parentNode !== list) return;
+      list.insertBefore(tab, wrapper);
+      if (!wrapper.textContent.trim() && !wrapper.querySelector('.ntt-tab')) {
+        wrapper.remove();
+      }
+    });
+  }
+
   // Heal structural damage from the rich-text editor before wiring tabs up.
   // TinyMCE can split the tab strip into several `.ntt-tabs-list` blocks (and
   // leave an empty, label-less tab stub behind). In vertical placements each
   // extra list is another column-1 grid item with `grid-row: auto / span 99`,
   // so the second one is placed ~99 rows down and opens a large empty gap
-  // before the stray tabs. Merge every list back into the first and drop tabs
-  // that have no label. Idempotent: once merged, later passes are no-ops.
+  // before the stray tabs. Merge every list back into the first, unwrap nested
+  // tabs, and drop tabs that have no label. Idempotent: later passes are no-ops.
   function normalizeTabs(root) {
     const lists = Array.from(root.querySelectorAll('.ntt-tabs-list'));
     if (lists.length > 1) {
@@ -113,6 +133,7 @@
     }
     const primaryList = root.querySelector('.ntt-tabs-list');
     if (primaryList) {
+      unwrapNestedTabs(primaryList);
       Array.from(primaryList.querySelectorAll('.ntt-tab')).forEach(function (tab) {
         if (!tab.textContent.trim()) tab.remove();
       });

@@ -184,8 +184,14 @@
       background: transparent;
       color: #2d3b45 !important;
       text-decoration: none !important;
-      font-weight: 500;
+      font-weight: 700;
       border-radius: 6px;
+    }
+    /* Inner nodes inherit the tab's weight/color so a stray <strong> or
+       <span style="color"> can't make one tab drift from its siblings. */
+    .ntt-tab * {
+      color: inherit !important;
+      font-weight: inherit !important;
     }
 
     .ntt-tab:hover {
@@ -195,7 +201,7 @@
 
     .ntt-tab.is-active {
       color: var(--ntt-tab-group-color, #002855) !important;
-      font-weight: 600;
+      font-weight: 700;
       background: color-mix(in srgb, var(--ntt-tab-group-color, #002855) 8%, transparent);
       box-shadow: inset 0 0 0 2px var(--ntt-tab-group-color, #002855) !important;
     }
@@ -1642,6 +1648,23 @@
       }
       const primaryList = root.querySelector('.ntt-tabs-list');
       if (primaryList) {
+        // Lift tabs the editor nested inside a wrapper up to direct children, so
+        // they render as flex items like their siblings (mirrors
+        // unwrapNestedTabs in runtime.js). Marks the page dirty so the cleaned
+        // markup persists on save.
+        Array.from(primaryList.querySelectorAll('.ntt-tab')).forEach(function (tab) {
+          if (tab.parentNode === primaryList) return;
+          let wrapper = tab;
+          while (wrapper.parentNode && wrapper.parentNode !== primaryList) {
+            wrapper = wrapper.parentNode;
+          }
+          if (wrapper.parentNode !== primaryList) return;
+          primaryList.insertBefore(tab, wrapper);
+          if (!wrapper.textContent.trim() && !wrapper.querySelector('.ntt-tab')) {
+            wrapper.remove();
+          }
+          changed = true;
+        });
         Array.from(primaryList.querySelectorAll('.ntt-tab')).forEach(function (tab) {
           if (!tab.textContent.trim()) {
             tab.remove();
