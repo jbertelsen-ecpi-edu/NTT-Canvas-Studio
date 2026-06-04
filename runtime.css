@@ -71,47 +71,89 @@
 
 .ntt-tab {
   position: relative;
-  padding: 0.55rem 0;
+  padding: 0.5rem 0.7rem;
   border: 0;
   background: transparent;
-  color: #56616f;
+  /* !important: these tabs are <a> elements, so Canvas's .user_content a brand
+     CSS would otherwise re-color them link-blue and re-underline them (same
+     specificity battle as the focus rule below). */
+  color: #2d3b45 !important;
   cursor: pointer;
   font: inherit;
   font-weight: 500;
-  text-decoration: none;
+  border-radius: 6px;
+  text-decoration: none !important;
+  transition: background-color 0.12s ease, box-shadow 0.12s ease;
 }
 
+/* Hover: a soft neutral fill — transient "you could go here". Deliberately
+   colorless; category color is reserved for the selected state. */
 .ntt-tab:hover {
-  color: #0b2f57;
+  background: #eef0f3;
+  color: #0b2f57 !important;
 }
 
-/* Suppress Canvas's default a:focus outline (orange) — Canvas's brand CSS
-   uses higher specificity and/or !important, so override with !important.
-   Keyboard focus still shows a ring via :focus-visible below. */
+/* Suppress Canvas's default a:focus outline (orange) — Canvas's brand CSS uses
+   higher specificity and/or !important, so override with !important. We do NOT
+   add a separate focus ring: in this widget focus always lands on the active
+   tab (arrow keys move focus + activate; Tab reaches only the tabindex=0 active
+   tab), so the selected box below IS the focus indicator. A second ring just
+   clashed with it. */
 .ntt-tab:focus {
   outline: none !important;
-  box-shadow: none !important;
 }
 
+/* Keyboard focus: reinforce the same category-colored box rather than drawing a
+   competing (blue) ring. Falls back to brand navy for ungrouped tabs. */
 .ntt-tab:focus-visible {
-  outline: 2px solid #1976d2 !important;
-  outline-offset: 2px;
-  border-radius: 2px;
+  outline: none !important;
+  box-shadow: inset 0 0 0 2px var(--ntt-tab-group-color, #002855) !important;
 }
 
+/* Selected: an outlined, tinted box — persistent "you are here". The outline
+   and text take the tab's category color (var, falling back to brand navy for
+   ungrouped tabs), so the registry color drives the selected state for free.
+   color-mix gives a faint same-hue fill without a second color to maintain. */
 .ntt-tab.is-active {
-  color: #002855;
+  color: var(--ntt-tab-group-color, #002855) !important;
   font-weight: 600;
+  background: color-mix(in srgb, var(--ntt-tab-group-color, #002855) 8%, transparent);
+  /* !important so the box survives the :focus reset above when the active tab
+     is also focused (which, in this widget, it always is once clicked). */
+  box-shadow: inset 0 0 0 2px var(--ntt-tab-group-color, #002855) !important;
 }
 
-.ntt-tab.is-active::after {
-  content: "";
-  position: absolute;
-  background: currentColor;
-  left: 0;
-  right: 0;
-  bottom: -1px;
-  height: 2px;
+/*
+ * Course-version groups. A tab declares its category via `data-ntt-group`;
+ * the accent color comes from the generated <style id="ntt-tab-groups">
+ * (built from the registry in runtime.js), so only structure lives here.
+ * An unset/unknown key falls back to a transparent accent and gets no label
+ * divider — orphaned keys degrade gracefully instead of breaking layout.
+ */
+.ntt-tab[data-ntt-group] {
+  border-left: 4px solid var(--ntt-tab-group-color, transparent);
+  padding-left: 0.65rem;
+}
+
+/* Group heading injected into the strip above the first tab of each group.
+   Full-width so it forces a line break and visually starts a new run in both
+   horizontal (wrapping flex) and vertical (column) placements. */
+.ntt-tab-group-label {
+  width: 100%;
+  margin: 0.85rem 0 0.35rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #e1e5eb;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #6a7686;
+}
+
+.ntt-tab-group-label:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
 }
 
 .ntt-tab-panel {
@@ -161,11 +203,6 @@
   border-top: 1px solid #e1e5eb;
 }
 
-.ntt-tabs--placement-bottom .ntt-tab.is-active::after {
-  bottom: auto;
-  top: -1px;
-}
-
 .ntt-tabs--placement-bottom > .ntt-tab-panel {
   order: 1;
 }
@@ -190,16 +227,16 @@
   grid-row: auto / span 99;
   flex-direction: column;
   flex-wrap: nowrap;
-  gap: 0;
+  /* Vertical gap between tabs so each group's left accent reads as separate
+     segments (one per tab) rather than one continuous rail. */
+  gap: 0.3rem;
   border-bottom: 0;
   align-self: start;
 }
 
-/* Vertical tabs stretch to fill the list width, so the active indicator
-   sits flush with the separator line. */
 .ntt-tabs--placement-start .ntt-tab,
 .ntt-tabs--placement-end .ntt-tab {
-  padding: 0.45rem 1rem;
+  padding: 0.45rem 0.85rem;
 }
 
 .ntt-tabs--placement-start > .ntt-tabs-list {
@@ -208,29 +245,11 @@
 }
 .ntt-tabs--placement-start > .ntt-tab-panel { grid-column: 2; padding: 0; }
 
-.ntt-tabs--placement-start .ntt-tab.is-active::after {
-  left: auto;
-  right: -1px;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  height: auto;
-}
-
 .ntt-tabs--placement-end > .ntt-tabs-list {
   grid-column: 2;
   border-left: 1px solid #e1e5eb;
 }
 .ntt-tabs--placement-end > .ntt-tab-panel { grid-column: 1; padding: 0; }
-
-.ntt-tabs--placement-end .ntt-tab.is-active::after {
-  right: auto;
-  left: -1px;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  height: auto;
-}
 
 .ntt-accordion {
   /* See note on .ntt-tabs above re: avoiding the margin shorthand. */
@@ -239,6 +258,15 @@
   border: 1px solid #c7cdd1;
   border-radius: 4px;
   overflow: hidden;
+}
+
+/* The accordion's own title (e.g. "16 HR Lecture (2-Day) Course Files") sits at
+   the top of the bordered box. Pad it (so it aligns with the 1rem item padding
+   instead of hugging the border) and balance top/bottom padding so it reads
+   vertically centered in its header strip. */
+.ntt-accordion > .ntt-component-title {
+  margin: 0;
+  padding: 0.85rem 1rem;
 }
 
 .ntt-accordion-item + .ntt-accordion-item {

@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  var VERSION = '0.6.4';
+  var VERSION = '0.8.0';
 
   // True only in the browser-extension copy (content script). The Canvas Theme
   // copy runs in the page's main world where `chrome.runtime.id` is undefined.
@@ -33,6 +33,67 @@
   // ---------------------------------------------------------------------------
   // Tabs
   // ---------------------------------------------------------------------------
+
+  // Course-version groups (categories). SINGLE SOURCE OF TRUTH for the label
+  // shown above each group and the accent color applied to its tabs. Pages
+  // store ONLY the `data-ntt-group` key on each tab — never the label text or
+  // color — so editing this object (and shipping the update) re-labels and
+  // re-colors every course at once, with no per-page edits. Keep it byte-for-
+  // byte identical to the copy in authoring.js (same duplication pattern as
+  // normalizeTabs/healTabsInBody). Adding a key here makes the group available
+  // everywhere; an unknown/removed key degrades gracefully (no accent, no
+  // label). No per-course overrides.
+  var NTT_TAB_GROUPS = {
+    standard: { label: 'Standard Course Versions', color: '#7a1f2b' },
+    state:    { label: 'State-Specific Versions',  color: '#2e7d32' },
+    client:   { label: 'Clientized Versions',      color: '#5d4037' }
+  };
+  // Order groups are offered/rendered in. Keys not listed still work; they just
+  // sort after the listed ones.
+  var NTT_TAB_GROUP_ORDER = ['standard', 'state', 'client'];
+
+  // CSS that maps each known group key to its accent color custom property.
+  // Generated from the registry so color lives in exactly one place. Injected
+  // into <head> (never into saved page HTML). Shared shape with authoring.js.
+  function tabGroupColorCss() {
+    return Object.keys(NTT_TAB_GROUPS).map(function (key) {
+      return '.ntt-tab[data-ntt-group="' + key + '"]{--ntt-tab-group-color:' +
+        NTT_TAB_GROUPS[key].color + ';}';
+    }).join('\n');
+  }
+
+  function ensureTabGroupStyle() {
+    if (!document.head || document.getElementById('ntt-tab-groups')) return;
+    var style = document.createElement('style');
+    style.id = 'ntt-tab-groups';
+    style.textContent = tabGroupColorCss();
+    document.head.appendChild(style);
+  }
+
+  // Insert a group-label divider before the first tab of each contiguous run of
+  // the same known group. Idempotent: clears prior labels first, so re-runs are
+  // safe. Tabs with no/unknown group get no label (graceful orphan handling).
+  function renderTabGroupLabels(root) {
+    var list = root.querySelector('.ntt-tabs-list');
+    if (!list) return;
+    Array.from(list.querySelectorAll('.ntt-tab-group-label')).forEach(function (el) {
+      el.remove();
+    });
+    var prevKey = null;
+    Array.from(list.querySelectorAll('.ntt-tab')).forEach(function (tab) {
+      if (tab.hidden) return; // skip the hidden shared/global tab in player mode
+      var key = tab.getAttribute('data-ntt-group');
+      var group = key && NTT_TAB_GROUPS[key];
+      if (group && key !== prevKey) {
+        var label = root.ownerDocument.createElement('div');
+        label.className = 'ntt-tab-group-label';
+        label.setAttribute('role', 'presentation');
+        label.textContent = group.label;
+        list.insertBefore(label, tab);
+      }
+      prevKey = group ? key : null;
+    });
+  }
 
   // Heal structural damage from the rich-text editor before wiring tabs up.
   // TinyMCE can split the tab strip into several `.ntt-tabs-list` blocks (and
@@ -193,6 +254,10 @@
     // editing state to become the published landing tab. (A deliberate
     // non-first default would need its own "set as start page" control.)
     activateTab(tabs[0]);
+
+    // Group dividers are a player-mode presentation detail; in authoring,
+    // authoring.js injects its own (serialize-safe) preview labels.
+    if (!isAuthoringMode()) renderTabGroupLabels(root);
   }
 
   // ---------------------------------------------------------------------------
@@ -344,6 +409,75 @@
     }
   }
 
+  var MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  // Format a y/m/d as "Sep 15, 2023" WITHOUT going through Date string parsing
+  // (which interprets "2023-09-15" as UTC and can render a day early in US zones).
+  function formatYMD(y, m, d) {
+    return MONTH_ABBR[m - 1] + ' ' + d + ', ' + y;
+  }
+
+  // Validate a calendar date and return {y,m,d,ts} or null (rejects e.g. 02/30).
+  function makeDate(y, m, d) {
+    if (m < 1 || m > 12 || d < 1 || d > 31 || y < 2000 || y > 2099) return null;
+    const dt = new Date(y, m - 1, d);
+    if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== d) return null;
+    return { y: y, m: m, d: d, ts: dt.getTime() };
+  }
+
+  function parseYMD(str) {
+    const m = String(str || '').match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+    return m ? makeDate(+m[1], +m[2], +m[3]) : null;
+  }
+
+  // Pull the most likely version date out of a (inconsistently named) filename.
+  // Handles ISO (YYYY-MM-DD), MM-DD-YYYY, and bare 8-digit MMDDYYYY / YYYYMMDD
+  // (optionally v-prefixed), with -, _, ., / or space separators. When several
+  // dates appear, the latest valid one wins (filenames carry the version date).
+  function parseFilenameDate(name) {
+    if (!name) return null;
+    const text = String(name).replace(/\.[A-Za-z0-9]{1,5}$/, ''); // drop extension
+    let best = null;
+    const consider = function (cand) {
+      if (cand && (!best || cand.ts > best.ts)) best = cand;
+    };
+    let re, mt;
+
+    // ISO-ish: YYYY[sep]MM[sep]DD
+    re = /(20\d{2})[\-_.\/ ](\d{1,2})[\-_.\/ ](\d{1,2})/g;
+    while ((mt = re.exec(text))) consider(makeDate(+mt[1], +mt[2], +mt[3]));
+
+    // MM[sep]DD[sep]YYYY
+    re = /(\d{1,2})[\-_.\/ ](\d{1,2})[\-_.\/ ](20\d{2})/g;
+    while ((mt = re.exec(text))) consider(makeDate(+mt[3], +mt[1], +mt[2]));
+
+    // Bare 8 digits (optional leading "v"): try MMDDYYYY, then YYYYMMDD. Only
+    // one interpretation can validate (a 20xx year forces YYYYMMDD; a <=12 lead
+    // forces MMDDYYYY), so no ambiguity.
+    re = /(?:^|[^0-9])v?(\d{8})(?![0-9])/g;
+    while ((mt = re.exec(text))) {
+      const s = mt[1];
+      consider(makeDate(+s.slice(4, 8), +s.slice(0, 2), +s.slice(2, 4))); // MMDDYYYY
+      consider(makeDate(+s.slice(0, 4), +s.slice(4, 6), +s.slice(6, 8))); // YYYYMMDD
+    }
+
+    return best;
+  }
+
+  // Resolve a row's date strictly from the filename (the link title attributes).
+  // We deliberately do NOT fall back to the authored data-updated: that value is
+  // just "the day the row was created" (see addFileDownloadRow), so showing it
+  // is misleading. A file whose name carries no date simply shows no date.
+  function resolveRowDate(links) {
+    for (let i = 0; i < links.length; i++) {
+      const t = links[i] && links[i].getAttribute('title');
+      const d = parseFilenameDate(t);
+      if (d) return d;
+    }
+    return null;
+  }
+
   function decorateFileRow(row) {
     if (row.hasAttribute('data-ntt-row-ready')) return;
 
@@ -389,17 +523,9 @@
       dateEl = row.ownerDocument.createElement('span');
       dateEl.className = 'ntt-file-row__date';
     }
-    const dateAttr = row.getAttribute('data-updated');
-    if (dateAttr) {
-      const updated = new Date(dateAttr);
-      if (!isNaN(updated.getTime())) {
-        dateEl.textContent = updated.toLocaleDateString('en-US', {
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric'
-        });
-      }
-    }
+    // The date text + "Updated" pill are applied by updateFileRowDate(), which
+    // runs on every row each pass (even rows another copy already decorated), so
+    // the filename-derived date overrides a stale theme copy's data-updated one.
 
     let downloadEl = downloadButton;
     if (playerMode) {
@@ -457,17 +583,56 @@
 
     row.setAttribute('data-ext', normalizedExt);
 
-    if (dateAttr) {
-      const updated = new Date(dateAttr);
-      if (!isNaN(updated.getTime())) {
-        const diffDays = (Date.now() - updated.getTime()) / (1000 * 60 * 60 * 24);
-        if (diffDays >= 0 && diffDays <= 30) {
-          row.classList.add('is-updated');
-        }
-      }
+    row.setAttribute('data-ntt-row-ready', '');
+  }
+
+  // Apply the filename-derived date (+ "Updated" pill) to a row. Runs on EVERY
+  // row each init pass — including rows a stale theme copy already decorated and
+  // marked ready — so the real version date from the filename always wins over
+  // the authored data-updated. Idempotent: only writes when the value changes,
+  // so it doesn't feed the mutation observer a loop.
+  function updateFileRowDate(row) {
+    const downloadLink = row.querySelector('.ntt-file-row__download');
+    const otherLink = row.querySelector('a[title]:not(.ntt-file-row__download)');
+    const rowDate = resolveRowDate([downloadLink, otherLink]);
+
+    // No filename date → clear the date and pill (don't leave a stale theme
+    // copy's data-updated value showing).
+    const dateEl = row.querySelector('.ntt-file-row__date');
+    if (dateEl) {
+      const text = rowDate ? formatYMD(rowDate.y, rowDate.m, rowDate.d) : '';
+      if (dateEl.textContent !== text) dateEl.textContent = text;
     }
 
-    row.setAttribute('data-ntt-row-ready', '');
+    let updated = false;
+    if (rowDate) {
+      const diffDays = (Date.now() - rowDate.ts) / (1000 * 60 * 60 * 24);
+      updated = diffDays >= 0 && diffDays <= 30;
+    }
+    if (row.classList.contains('is-updated') !== updated) {
+      row.classList.toggle('is-updated', updated);
+    }
+  }
+
+  // Strip stray, non-component elements an author may have left inside a file
+  // row (e.g. a pasted "2026-06-03" date span), which otherwise render as a
+  // second date next to ours. Keeps only the managed parts; preserves links and
+  // images defensively. Runs each pass; idempotent once cleaned.
+  const FILE_ROW_PARTS = [
+    'ntt-file-row__checkbox', 'ntt-file-row__icon', 'ntt-file-row__name',
+    'ntt-file-row__date', 'ntt-file-row__download'
+  ];
+  function sanitizeFileRow(row) {
+    if (!row.hasAttribute('data-ntt-row-ready')) return;
+    Array.from(row.children).forEach(function (child) {
+      if (child.nodeType !== 1) return;
+      const tag = child.tagName;
+      if (tag === 'A' || tag === 'IMG') return;
+      const known = FILE_ROW_PARTS.some(function (c) {
+        return child.classList && child.classList.contains(c);
+      });
+      if (!known) child.remove();
+    });
   }
 
   function getFileExtension(row, link) {
@@ -829,6 +994,13 @@
     document.querySelectorAll('.ntt-tabs').forEach(initTabs);
     document.querySelectorAll('.ntt-accordion').forEach(initAccordion);
     document.querySelectorAll('.ntt-file-row').forEach(decorateFileRow);
+    // Always re-assert the filename date and strip stray content, even on rows a
+    // stale theme copy decorated, so the filename date wins and no second date
+    // (or other leftover) shows.
+    document.querySelectorAll('.ntt-file-row').forEach(function (row) {
+      sanitizeFileRow(row);
+      updateFileRowDate(row);
+    });
     document.querySelectorAll('.ntt-accordion').forEach(createAccordionToolbar);
     document.querySelectorAll('.ntt-tabs').forEach(createTabsToolbar);
   }
@@ -838,6 +1010,7 @@
       document.documentElement.setAttribute('data-ntt-runtime', VERSION);
     }
     try {
+      ensureTabGroupStyle();
       initAllComponents();
     } catch (err) {
       // Never let one failure wedge the page or stop the observer.
