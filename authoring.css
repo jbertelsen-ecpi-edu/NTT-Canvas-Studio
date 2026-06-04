@@ -137,6 +137,20 @@
   font-weight: 600;
 }
 
+.ntt-link-dialog__sub {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 400;
+  color: #666;
+}
+
+.ntt-link-dialog__sub code {
+  background: #f0f2f5;
+  padding: 0 3px;
+  border-radius: 3px;
+}
+
 .ntt-link-dialog__field input {
   width: 100%;
   box-sizing: border-box;

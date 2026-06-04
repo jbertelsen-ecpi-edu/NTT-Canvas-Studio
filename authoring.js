@@ -174,29 +174,62 @@
       padding: 0;
     }
 
+    /* Tab states mirror runtime.css: soft grey hover, outlined+tinted selected
+       box in the category color, no link underline. Kept in sync so the editor
+       preview matches the published page. */
     .ntt-tab {
       position: relative;
-      padding: 0.5rem 0;
+      padding: 0.5rem 0.7rem;
       border: 0;
       background: transparent;
-      color: #56616f;
-      text-decoration: none;
-      font-weight: 500;
+      color: #2d3b45 !important;
+      text-decoration: none !important;
+      font-weight: 700;
+      border-radius: 6px;
+    }
+    /* Inner nodes inherit the tab's weight/color so a stray <strong> or
+       <span style="color"> can't make one tab drift from its siblings. */
+    .ntt-tab * {
+      color: inherit !important;
+      font-weight: inherit !important;
+    }
+
+    .ntt-tab:hover {
+      background: #eef0f3;
+      color: #0b2f57 !important;
     }
 
     .ntt-tab.is-active {
-      color: #002855;
-      font-weight: 600;
+      color: var(--ntt-tab-group-color, #002855) !important;
+      font-weight: 700;
+      background: color-mix(in srgb, var(--ntt-tab-group-color, #002855) 8%, transparent);
+      box-shadow: inset 0 0 0 2px var(--ntt-tab-group-color, #002855) !important;
     }
 
-    .ntt-tab.is-active::after {
-      content: "";
-      position: absolute;
-      background: currentColor;
-      left: 0;
-      right: 0;
-      bottom: -1px;
-      height: 2px;
+    /* Course-version group accent + heading (mirrors runtime.css). Accent color
+       comes from the registry-generated rules appended in injectPreviewCss;
+       only structure lives here. Unset/unknown key => transparent accent + no
+       heading. The heading is injected as a TinyMCE-bogus node, so it previews
+       here but is never saved. */
+    .ntt-tab[data-ntt-group] {
+      border-left: 4px solid var(--ntt-tab-group-color, transparent);
+      padding-left: 0.65rem;
+    }
+    .ntt-tab-group-label {
+      width: 100%;
+      margin: 0.85rem 0 0.35rem;
+      padding-top: 0.5rem;
+      border-top: 1px solid #d0d7de;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #6a7686;
+    }
+    .ntt-tab-group-label:first-child {
+      margin-top: 0;
+      padding-top: 0;
+      border-top: 0;
     }
 
     /* Shared/global tab badge (authoring only). Globe = appears on every version
@@ -212,6 +245,16 @@
     }
     .ntt-tab--shared::after {
       content: " 🙈 hidden from students";
+      font-size: 10px;
+      font-weight: normal;
+      color: #6a7686;
+    }
+
+    /* Authoring cue: this tab is excluded from the shared (global) tab's
+       content. Runtime drops it from the recipients; here we badge it so the
+       author can see the exception at a glance. */
+    .ntt-tab[data-ntt-shared-opt-out]::after {
+      content: " ⊘ no shared content";
       font-size: 10px;
       font-weight: normal;
       color: #6a7686;
@@ -248,10 +291,6 @@
       margin-bottom: 0;
       margin-top: 12px;
     }
-    .ntt-tabs--placement-bottom .ntt-tab.is-active::after {
-      bottom: auto;
-      top: -1px;
-    }
     .ntt-tabs--placement-bottom > .ntt-tab-panel { order: 1; }
 
     .ntt-tabs--placement-start,
@@ -279,14 +318,15 @@
       grid-row: auto / span 99;
       flex-direction: column;
       flex-wrap: nowrap;
-      gap: 0;
+      /* Vertical gap so each tab's accent reads as a separate segment. */
+      gap: 0.3rem;
       align-self: start;
       margin-bottom: 0;
       border-bottom: 0;
     }
     .ntt-tabs--placement-start .ntt-tab,
     .ntt-tabs--placement-end .ntt-tab {
-      padding: 0.4rem 0.75rem;
+      padding: 0.45rem 0.85rem;
     }
 
     .ntt-tabs--placement-start > .ntt-tabs-list {
@@ -294,28 +334,12 @@
       border-right: 1px solid #d0d7de;
     }
     .ntt-tabs--placement-start > .ntt-tab-panel { grid-column: 2; }
-    .ntt-tabs--placement-start .ntt-tab.is-active::after {
-      left: auto;
-      right: -1px;
-      top: 0;
-      bottom: 0;
-      width: 2px;
-      height: auto;
-    }
 
     .ntt-tabs--placement-end > .ntt-tabs-list {
       grid-column: 2;
       border-left: 1px solid #d0d7de;
     }
     .ntt-tabs--placement-end > .ntt-tab-panel { grid-column: 1; }
-    .ntt-tabs--placement-end .ntt-tab.is-active::after {
-      right: auto;
-      left: -1px;
-      top: 0;
-      bottom: 0;
-      width: 2px;
-      height: auto;
-    }
 
     .ntt-accordion {
       border: 2px dashed #0b2f57;
@@ -332,6 +356,13 @@
       font-weight: bold;
       color: #0b2f57;
       margin-bottom: 8px;
+    }
+
+    /* Match runtime: pad the accordion's title and balance it vertically in its
+       header strip (mirrors .ntt-accordion > .ntt-component-title in runtime.css). */
+    .ntt-accordion > .ntt-component-title {
+      margin: 0 0 8px 0;
+      padding: 0.85rem 1rem;
     }
 
     .ntt-accordion-item {
@@ -443,8 +474,80 @@
     if (!doc || !doc.head || doc.getElementById('ntt-tinymce-preview-css')) return;
     const style = doc.createElement('style');
     style.id = 'ntt-tinymce-preview-css';
-    style.textContent = PREVIEW_CSS;
+    // Append the registry-generated group colors so the editor preview matches
+    // what the runtime paints. Colors live only in the registry (one source).
+    style.textContent = PREVIEW_CSS + '\n' + tabGroupColorCss();
     doc.head.appendChild(style);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Course-version groups (categories).
+  //
+  // SINGLE SOURCE OF TRUTH for each group's label + accent color. Pages store
+  // ONLY the `data-ntt-group` key on a tab — never the label or color — so a
+  // change here (shipped as an update) re-labels/re-colors every course at
+  // once, with no per-page edits and no overrides. Keep this object identical
+  // to the copy in runtime.js (same duplication pattern as healTabsInBody /
+  // normalizeTabs). An unknown/removed key degrades gracefully: no accent, no
+  // label.
+  // ---------------------------------------------------------------------------
+
+  const NTT_TAB_GROUPS = {
+    standard: { label: 'Standard Course Versions', color: '#7a1f2b' },
+    state:    { label: 'State-Specific Versions',  color: '#2e7d32' },
+    client:   { label: 'Clientized Versions',      color: '#5d4037' }
+  };
+  const NTT_TAB_GROUP_ORDER = ['standard', 'state', 'client'];
+
+  function tabGroupColorCss() {
+    return Object.keys(NTT_TAB_GROUPS).map(function (key) {
+      return '.ntt-tab[data-ntt-group="' + key + '"]{--ntt-tab-group-color:' +
+        NTT_TAB_GROUPS[key].color + ';}';
+    }).join('\n');
+  }
+
+  // Group keys in display order: the registry order first, then any stray keys.
+  function orderedTabGroupKeys() {
+    const extra = Object.keys(NTT_TAB_GROUPS).filter(function (k) {
+      return NTT_TAB_GROUP_ORDER.indexOf(k) === -1;
+    });
+    return NTT_TAB_GROUP_ORDER.filter(function (k) {
+      return Boolean(NTT_TAB_GROUPS[k]);
+    }).concat(extra);
+  }
+
+  // Mirror of runtime.js renderTabGroupLabels, with one twist: the divider is
+  // marked `data-mce-bogus="all"` so TinyMCE renders it as a preview but never
+  // serializes it into the saved page — keeping group LABELS out of the HTML
+  // (only the `data-ntt-group` key is saved). Idempotent.
+  function renderTabGroupLabels(tabsRoot) {
+    const list = tabsRoot.querySelector('.ntt-tabs-list');
+    if (!list) return;
+    const doc = tabsRoot.ownerDocument;
+    Array.from(list.querySelectorAll('.ntt-tab-group-label')).forEach(function (el) {
+      el.remove();
+    });
+    let prevKey = null;
+    Array.from(list.querySelectorAll('.ntt-tab')).forEach(function (tab) {
+      const key = tab.getAttribute('data-ntt-group');
+      const group = key && NTT_TAB_GROUPS[key];
+      if (group && key !== prevKey) {
+        const label = doc.createElement('div');
+        label.className = 'ntt-tab-group-label';
+        label.setAttribute('role', 'presentation');
+        label.setAttribute('contenteditable', 'false');
+        label.setAttribute('data-mce-bogus', 'all');
+        label.textContent = group.label;
+        list.insertBefore(label, tab);
+      }
+      prevKey = group ? key : null;
+    });
+  }
+
+  function renderAllTabGroupLabels() {
+    getEditableContexts().forEach(function (ctx) {
+      Array.from(ctx.body.querySelectorAll('.ntt-tabs')).forEach(renderTabGroupLabels);
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -687,6 +790,8 @@
       y: y,
       isTab: isTab,
       isSharedTab: isTab ? tab.classList.contains('ntt-tab--shared') : false,
+      isSharedOptOut: isTab ? tab.hasAttribute('data-ntt-shared-opt-out') : false,
+      tabGroup: isTab ? (tab.getAttribute('data-ntt-group') || '') : '',
       isAccordionHeader: isAccordionHeader,
       isComponentRoot: isComponentRoot,
       isInTabs: isInTabs,
@@ -887,6 +992,11 @@
 
     const menu = document.createElement('dialog');
     menu.id = 'ntt-context-menu';
+    // Group buttons are generated from the registry so adding a category there
+    // surfaces it here automatically — no menu edit needed.
+    const groupButtons = orderedTabGroupKeys().map(function (key) {
+      return `<button type="button" data-ntt-action="set-tab-group" data-group="${key}">${NTT_TAB_GROUPS[key].label}</button>`;
+    }).join('\n        ');
     menu.innerHTML = `
       <div class="ntt-context-menu__title">NTT Canvas Editor</div>
 
@@ -913,7 +1023,14 @@
         <button type="button" data-ntt-action="insert-tab-before">Insert Tab Before</button>
         <button type="button" data-ntt-action="insert-tab-after">Insert Tab After</button>
         <button type="button" data-ntt-action="toggle-shared-tab" data-ntt-shared-label>Mark as shared (global) tab</button>
+        <button type="button" data-ntt-action="toggle-shared-opt-out" data-ntt-shared-opt-out-label>Exclude from shared content</button>
         <button type="button" data-ntt-action="delete-tab" class="is-danger">Delete Tab</button>
+      </div>
+
+      <div class="ntt-context-menu__section" data-ntt-group-section hidden>
+        <div class="ntt-context-menu__section-label">Course Version Group</div>
+        ${groupButtons}
+        <button type="button" data-ntt-action="set-tab-group" data-group="">No group</button>
       </div>
 
       <div class="ntt-context-menu__section" data-ntt-accordion-section hidden>
@@ -974,7 +1091,7 @@
     menu.addEventListener('click', function (event) {
       const button = event.target.closest('button[data-ntt-action]');
       if (!button) return;
-      runContextAction(button.getAttribute('data-ntt-action'));
+      runContextAction(button.getAttribute('data-ntt-action'), button);
       hideContextMenu();
     });
 
@@ -1016,6 +1133,7 @@
     const headingSection = menu.querySelector('[data-ntt-heading-section]');
     const fileRowSection = menu.querySelector('[data-ntt-file-row-section]');
     const tabSection = menu.querySelector('[data-ntt-tab-section]');
+    const groupSection = menu.querySelector('[data-ntt-group-section]');
     const accordionSection = menu.querySelector('[data-ntt-accordion-section]');
     const tabsPlacementSection = menu.querySelector('[data-ntt-tabs-placement-section]');
     const accordionExpandSection = menu.querySelector('[data-ntt-accordion-expand-section]');
@@ -1035,6 +1153,23 @@
           : 'Mark as shared (global) tab';
         sharedBtn.classList.toggle('is-current', options.isSharedTab);
       }
+      // Opt-out only makes sense on a normal tab (not the shared tab itself,
+      // which is the source of the content).
+      const optOutBtn = tabSection.querySelector('[data-ntt-shared-opt-out-label]');
+      if (optOutBtn) {
+        optOutBtn.hidden = options.isSharedTab;
+        optOutBtn.textContent = options.isSharedOptOut
+          ? 'Include in shared content'
+          : 'Exclude from shared content';
+        optOutBtn.classList.toggle('is-current', options.isSharedOptOut);
+      }
+    }
+    if (groupSection) groupSection.hidden = !options.isTab;
+    if (options.isTab && groupSection) {
+      Array.from(groupSection.querySelectorAll('button[data-group]')).forEach(function (btn) {
+        const isCurrent = btn.getAttribute('data-group') === options.tabGroup;
+        btn.classList.toggle('is-current', isCurrent);
+      });
     }
     accordionSection.hidden = !options.isAccordionHeader;
     tabsPlacementSection.hidden = !options.isInTabs;
@@ -1116,7 +1251,7 @@
     menu.classList.remove('is-open');
   }
 
-  function runContextAction(action) {
+  function runContextAction(action, button) {
     if (action === 'insert-tabs') {
       insertHtml('\n' + getTabsHtml() + '\n');
       return;
@@ -1129,6 +1264,10 @@
       toggleSharedTab();
       return;
     }
+    if (action === 'toggle-shared-opt-out') {
+      toggleSharedOptOut();
+      return;
+    }
     if (action === 'insert-tab-before') {
       insertTabRelativeToCurrent('before');
       return;
@@ -1139,6 +1278,10 @@
     }
     if (action === 'delete-tab') {
       deleteCurrentTab();
+      return;
+    }
+    if (action === 'set-tab-group') {
+      setTabGroup(button ? button.getAttribute('data-group') : '');
       return;
     }
     if (action === 'insert-accordion-item-before') {
@@ -1228,6 +1371,38 @@
     notifyEditorChanged();
   }
 
+  // Assign (or clear, when key is falsy) the course-version group on the
+  // right-clicked tab. Only the key is written to the HTML — the label and
+  // color come from the registry at render time. Unknown keys are ignored.
+  function setTabGroup(key) {
+    const tab = contextTarget && contextTarget.tab;
+    const tabsRoot = contextTarget && contextTarget.tabsRoot;
+    if (!tab) return;
+
+    if (key && NTT_TAB_GROUPS[key]) {
+      tab.setAttribute('data-ntt-group', key);
+    } else {
+      tab.removeAttribute('data-ntt-group');
+    }
+    if (tabsRoot) renderTabGroupLabels(tabsRoot);
+    notifyEditorChanged();
+  }
+
+  // Toggle whether this tab is excluded from the shared (global) tab's content.
+  // Per-tab because there's no reliable audience rule (e.g. Non-Qualified-Person
+  // courses shouldn't receive Qualified-Person job aids). Only the marker is
+  // written to the HTML; the runtime drops opted-out tabs from the recipients.
+  function toggleSharedOptOut() {
+    const tab = contextTarget && contextTarget.tab;
+    if (!tab) return;
+    if (tab.hasAttribute('data-ntt-shared-opt-out')) {
+      tab.removeAttribute('data-ntt-shared-opt-out');
+    } else {
+      tab.setAttribute('data-ntt-shared-opt-out', '');
+    }
+    notifyEditorChanged();
+  }
+
   function insertTabRelativeToCurrent(position) {
     const currentTab = contextTarget && contextTarget.tab;
     const tabsRoot = contextTarget && contextTarget.tabsRoot;
@@ -1253,6 +1428,11 @@
     newTab.id = `${uid}-button`;
     newTab.textContent = title;
 
+    // Inherit the neighbor's group so a new tab lands in the same category run
+    // (keeps groups contiguous without the author re-picking it each time).
+    const inheritedGroup = currentTab.getAttribute('data-ntt-group');
+    if (inheritedGroup) newTab.setAttribute('data-ntt-group', inheritedGroup);
+
     const newPanel = doc.createElement('div');
     newPanel.className = 'ntt-tab-panel';
     newPanel.setAttribute('role', 'tabpanel');
@@ -1268,6 +1448,7 @@
       tabsRoot.insertBefore(newPanel, panels[currentIndex + 1] || null);
     }
 
+    renderTabGroupLabels(tabsRoot);
     notifyEditorChanged();
   }
 
@@ -1302,6 +1483,7 @@
       if (nextTab) activateAuthoringTab(tabsRoot, nextTab);
     }
 
+    renderTabGroupLabels(tabsRoot);
     notifyEditorChanged();
   }
 
@@ -1507,6 +1689,23 @@
       }
       const primaryList = root.querySelector('.ntt-tabs-list');
       if (primaryList) {
+        // Lift tabs the editor nested inside a wrapper up to direct children, so
+        // they render as flex items like their siblings (mirrors
+        // unwrapNestedTabs in runtime.js). Marks the page dirty so the cleaned
+        // markup persists on save.
+        Array.from(primaryList.querySelectorAll('.ntt-tab')).forEach(function (tab) {
+          if (tab.parentNode === primaryList) return;
+          let wrapper = tab;
+          while (wrapper.parentNode && wrapper.parentNode !== primaryList) {
+            wrapper = wrapper.parentNode;
+          }
+          if (wrapper.parentNode !== primaryList) return;
+          primaryList.insertBefore(tab, wrapper);
+          if (!wrapper.textContent.trim() && !wrapper.querySelector('.ntt-tab')) {
+            wrapper.remove();
+          }
+          changed = true;
+        });
         Array.from(primaryList.querySelectorAll('.ntt-tab')).forEach(function (tab) {
           if (!tab.textContent.trim()) {
             tab.remove();
@@ -1543,6 +1742,7 @@
         Array.from(body.querySelectorAll('.ntt-tabs')).forEach(function (tabsRoot) {
           const firstTab = tabsRoot.querySelector('.ntt-tab');
           if (firstTab) activateAuthoringTab(tabsRoot, firstTab);
+          renderTabGroupLabels(tabsRoot);
         });
         console.log(
           '[NTT] Bound editor integration on',
@@ -1588,8 +1788,9 @@
           <input type="url" name="url" required placeholder="https://...">
         </label>
         <label class="ntt-link-dialog__field">
-          <span>File name (optional)</span>
-          <input type="text" name="name" placeholder="Course Overview.pdf">
+          <span>File name</span>
+          <input type="text" name="name" placeholder="ES_24_..._08062024.pdf">
+          <small class="ntt-link-dialog__sub">Use the real file name including its date — the row shows that date (e.g. <code>…_08062024.pdf</code> → Aug 6, 2024).</small>
         </label>
         <div class="ntt-link-dialog__actions">
           <button type="button" data-ntt-link-cancel>Cancel</button>
