@@ -30,11 +30,18 @@ The same `runtime.js` / `runtime.css` reach pages two ways:
 When a developer with the extension views a page that *also* has the Theme
 runtime, both copies are present. They run in different JS realms (the
 extension's content script is an isolated world; the Theme upload runs in the
-page's main world) that share the DOM but not `window`, so dedupe uses a
-**shared-DOM marker**: the first copy to run sets `data-ntt-runtime` on
-`<html>` (at DOM-ready, via `claimPage()`); any later copy bails. This prevents
-double-decoration when a developer with the extension views a page that also
-carries the Theme copy. Students (no extension) just run the Theme copy.
+page's main world) that share the DOM but not `window`, so coordination is via
+**shared-DOM flags, per component** — not a single page-wide claim. Each
+component is tagged with a `data-ntt-*-ready` attribute (`data-ntt-tabs-ready`,
+`data-ntt-accordion-ready`, `data-ntt-row-ready`) once initialized, and every
+init step is idempotent, so a re-run or a second copy is harmless: whoever gets
+to a component first wires it, and the other copy sees the marker and skips it.
+There is deliberately **no** page-level "claim," which would let an early copy
+(one that ran before Canvas finished rendering the body) lock out the
+correctly-timed copy. (`<html>` does get a `data-ntt-runtime` version stamp,
+but it's just for diagnostics — it is not a gate.) The extension can also
+re-own a stale theme copy's component in "priority" mode (the popup toggle).
+Students (no extension) just run the Theme copy.
 
 `runtime.css` is fully `.ntt-*`-scoped, so loading it account-wide has no
 effect on pages without NTT components.

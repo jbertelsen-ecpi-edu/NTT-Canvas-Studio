@@ -81,6 +81,41 @@ body {
   background: #cf7f06;
 }
 
+/* Self-diagnosis warning (red) — distinct from the orange update banner. */
+.ntt-popup__health {
+  border: 1px solid #e6a8a0;
+  border-left: 4px solid #c0392b;
+  border-radius: 6px;
+  background: #fdf1ef;
+  color: #6a1f16;
+  padding: 0.6rem 0.7rem;
+  margin-bottom: 0.85rem;
+}
+
+.ntt-popup__health-text {
+  margin: 0 0 0.3rem;
+  font-size: 0.82rem;
+}
+
+.ntt-popup__health-detail {
+  margin: 0 0 0.4rem;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.ntt-popup__health-sub {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: #804a40;
+}
+
+.ntt-popup__health-sub code {
+  background: #f4d9d4;
+  padding: 0 3px;
+  border-radius: 3px;
+}
+
 .ntt-popup__toggle {
   display: flex;
   align-items: flex-start;

@@ -33,15 +33,22 @@ function compareParts(a, b) {
   return 0;
 }
 
-function setBadge(updateAvailable) {
-  try {
-    if (updateAvailable) {
-      chrome.action.setBadgeText({ text: '!' });
-      chrome.action.setBadgeBackgroundColor({ color: '#e8920b' });
-    } else {
-      chrome.action.setBadgeText({ text: '' });
-    }
-  } catch (e) { /* action API unavailable — ignore */ }
+// Toolbar badge reflects stored state: a health problem (red) takes priority
+// over an available update (orange); otherwise the badge is cleared.
+function refreshBadge() {
+  chrome.storage.local.get(['updateAvailable', 'healthOk'], function (res) {
+    try {
+      if (res && res.healthOk === false) {
+        chrome.action.setBadgeText({ text: '!' });
+        chrome.action.setBadgeBackgroundColor({ color: '#c0392b' }); // red: broken
+      } else if (res && res.updateAvailable) {
+        chrome.action.setBadgeText({ text: '!' });
+        chrome.action.setBadgeBackgroundColor({ color: '#e8920b' }); // orange: update
+      } else {
+        chrome.action.setBadgeText({ text: '' });
+      }
+    } catch (e) { /* action API unavailable — ignore */ }
+  });
 }
 
 function checkForUpdate(force) {
@@ -80,8 +87,7 @@ function checkForUpdate(force) {
           latestVersion: latestVersion,
           updateAvailable: updateAvailable,
           lastUpdateCheck: Date.now()
-        });
-        setBadge(updateAvailable);
+        }, refreshBadge);
       })
       .catch(function (err) {
         // Not signed in, offline, CORS, or path wrong: leave prior state, no badge churn.
@@ -92,11 +98,27 @@ function checkForUpdate(force) {
 
 chrome.runtime.onMessage.addListener(function (msg) {
   if (msg && msg.type === 'CHECK_UPDATE') checkForUpdate(false);
-  // No async sendResponse needed; fire-and-forget.
+
+  // Self-diagnosis from the content script: store the latest result (the most
+  // recent NTT page the user loaded) and re-badge. A healthy report clears a
+  // prior warning. See runHealthCheck() in runtime.js and MAINTENANCE.md §1–§2.
+  if (msg && msg.type === 'NTT_HEALTH') {
+    var bad = (msg.ok === false);
+    chrome.storage.local.set({
+      healthOk: !bad,
+      healthCode: bad ? (msg.code || 'unknown') : null,
+      healthDetail: bad ? (msg.detail || '') : null,
+      healthUrl: bad ? (msg.url || '') : null,
+      healthTs: Date.now()
+    }, refreshBadge);
+  }
+  // Fire-and-forget; no async sendResponse.
 });
 
-// A fresh install/update means we're current until a check proves otherwise.
+// A fresh install/update means we're current and healthy until proven otherwise.
 chrome.runtime.onInstalled.addListener(function () {
-  chrome.storage.local.set({ updateAvailable: false, latestVersion: null });
-  setBadge(false);
+  chrome.storage.local.set({
+    updateAvailable: false, latestVersion: null,
+    healthOk: true, healthCode: null, healthDetail: null, healthUrl: null
+  }, refreshBadge);
 });

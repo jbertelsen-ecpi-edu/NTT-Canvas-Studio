@@ -25,6 +25,14 @@
       <button type="button" class="ntt-popup__button ntt-popup__button--update" id="updateBtn">Get the new version</button>
     </section>
 
+    <section class="ntt-popup__health" id="healthWarning" hidden>
+      <p class="ntt-popup__health-text">
+        <strong>&#9888; Components didn&rsquo;t load correctly</strong>
+      </p>
+      <p class="ntt-popup__health-detail" id="healthDetail"></p>
+      <p class="ntt-popup__health-sub">Often means a Canvas update changed something &mdash; test in beta and see <code>MAINTENANCE.md</code> (&sect;1&ndash;&sect;2).</p>
+    </section>
+
     <label class="ntt-popup__toggle">
       <input type="checkbox" id="priorityToggle">
       <span class="ntt-popup__toggle-body">
