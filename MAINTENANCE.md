@@ -47,6 +47,26 @@ the whole codebase.
 | "Update available" never appears / is wrong; popup buttons dead | SharePoint check / links | §7 |
 | Whole extension dead after a Chrome update | Extension platform (MV3) | §8 |
 
+### Self-diagnosis codes (toolbar badge / popup)
+
+The extension runs a one-shot health check a few seconds after each page loads
+and reports the result to the background worker; a problem shows as a **red `!`
+badge** on the toolbar icon and a warning in the **popup**. (See
+`runHealthCheck()` in [runtime.js](runtime.js); badge/storage in
+[background.js](background.js).) A later healthy page clears the warning, so it
+reflects the **last NTT page you loaded** — a local heads-up, not server-side
+monitoring, and it only fires for people who have the extension.
+
+| Popup code | Means | Start at |
+|---|---|---|
+| `rce-not-detected` | On a `…/pages/…/edit` page but the Canvas RCE wasn't found — the strongest "Canvas changed the editor" signal | §1 |
+| `init-error` | `runInit` threw while initializing components (check the console for the error) | §2 |
+| `tabs-stalled` | A tabs component had real content but never got `data-ntt-tabs-ready` | §2 |
+| `accordion-stalled` | An accordion had real content but never got `data-ntt-accordion-ready` | §2 |
+
+If one of these appears right after a Canvas release, it's almost certainly the
+release — run the beta smoke test and check the indicated section.
+
 ---
 
 ## §1 — Canvas RCE detection & TinyMCE API  *(highest-risk)*
