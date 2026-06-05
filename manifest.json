@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "NTT Canvas Editor Dev",
-  "version": "0.8.4",
+  "version": "0.8.5",
   "description": "Local development version of the NTT Canvas Editor.",
   "icons": {
     "16": "icons/icon16.png",

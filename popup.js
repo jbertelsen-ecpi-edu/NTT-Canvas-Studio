@@ -24,6 +24,16 @@
   var updateBanner = document.getElementById('updateBanner');
   var updateVersion = document.getElementById('updateVersion');
   var updateBtn = document.getElementById('updateBtn');
+  var healthWarning = document.getElementById('healthWarning');
+  var healthDetail = document.getElementById('healthDetail');
+
+  // Map a diagnosis code from runtime.js to a short, plain-English line.
+  var HEALTH_MESSAGES = {
+    'init-error': 'The components threw an error while loading.',
+    'rce-not-detected': 'The Canvas editor (RCE) was not detected on an edit page.',
+    'tabs-stalled': 'A tabs component was present but did not initialize.',
+    'accordion-stalled': 'An accordion was present but did not initialize.'
+  };
 
   extVersion.textContent = 'v' + chrome.runtime.getManifest().version;
 
@@ -36,6 +46,17 @@
   });
   updateBtn.addEventListener('click', function () {
     chrome.tabs.create({ url: DOWNLOAD_FOLDER_URL });
+  });
+
+  // --- Health warning: reflect the last self-diagnosis from the content script
+  chrome.storage.local.get(['healthOk', 'healthCode', 'healthDetail'], function (res) {
+    if (!res || res.healthOk === false) {
+      if (!res) return; // nothing reported yet
+      var line = HEALTH_MESSAGES[res.healthCode] || 'A component failed to initialize.';
+      if (res.healthDetail) line += ' (' + res.healthDetail + ')';
+      healthDetail.textContent = line;
+      healthWarning.hidden = false;
+    }
   });
 
   // --- Priority toggle: reflect + persist the stored flag ------------------
