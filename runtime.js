@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  var VERSION = '0.8.4';
+  var VERSION = '0.8.5';
 
   // True only in the browser-extension copy (content script). The Canvas Theme
   // copy runs in the page's main world where `chrome.runtime.id` is undefined.
@@ -19,6 +19,14 @@
   // One-shot guard so entering edit mode triggers a single update check per page
   // load (runInit re-runs via the observer). See maybeCheckForUpdate().
   var updateCheckRequested = false;
+
+  // Self-diagnosis state. `initThrew` tracks whether the MOST RECENT runInit
+  // threw (reset each run, so an early failure that a later idempotent retry
+  // fixes doesn't linger). `healthCheckDone` makes the post-load check one-shot.
+  // See runHealthCheck() / MAINTENANCE.md §1–§2.
+  var initThrew = false;
+  var initErrorMessage = null;
+  var healthCheckDone = false;
 
   // Dedupe + timing strategy: this file is loaded by BOTH the browser
   // extension (isolated content-script world) and the Canvas Theme upload
@@ -1065,14 +1073,18 @@
     if (document.documentElement) {
       document.documentElement.setAttribute('data-ntt-runtime', VERSION);
     }
+    initThrew = false;
     try {
       ensureTabGroupStyle();
       initAllComponents();
     } catch (err) {
       // Never let one failure wedge the page or stop the observer.
+      initThrew = true;
+      initErrorMessage = (err && err.message) ? err.message : String(err);
       if (window.console && console.error) console.error('[NTT] init error', err);
     }
     maybeCheckForUpdate();
+    scheduleHealthCheck();
   }
 
   // Entering Canvas edit mode is the moment an author is actively working — a
@@ -1088,6 +1100,77 @@
     } catch (e) {
       // Service worker asleep or context gone — harmless; next page load retries.
     }
+  }
+
+  // One-shot, extension-only self-diagnosis. A few seconds after load (once
+  // Canvas has settled and the observer has had time to (re)init), verify our
+  // components actually initialized and — on an edit page — that the RCE was
+  // detected, then report to the background worker. The worker badges the
+  // toolbar and the popup shows the detail. This turns a silent Canvas-induced
+  // breakage into a visible signal instead of waiting on a user ticket. The
+  // codes are documented in MAINTENANCE.md (§1 RCE, §2 init/timing).
+  function scheduleHealthCheck() {
+    if (healthCheckDone || !IS_EXTENSION) return;
+    healthCheckDone = true;
+    setTimeout(runHealthCheck, 4000);
+  }
+
+  function reportHealth(ok, code, detail) {
+    try {
+      chrome.runtime.sendMessage({
+        type: 'NTT_HEALTH',
+        ok: ok,
+        code: ok ? null : code,
+        detail: ok ? null : (detail || ''),
+        url: location.href
+      });
+    } catch (e) {
+      // Worker asleep or context gone — harmless; the next page load re-reports.
+    }
+  }
+
+  function runHealthCheck() {
+    // 1. Init threw — unambiguous.
+    if (initThrew) {
+      reportHealth(false, 'init-error', initErrorMessage || 'init threw');
+      return;
+    }
+
+    // 2. Edit page but the RCE wasn't detected — the strongest "Canvas changed
+    //    the editor" signal (the authoring hooks rely on the same detection).
+    var isEditPage = /\/pages\/[^/]+\/edit\b/.test(location.pathname);
+    if (isEditPage && !isAuthoringMode()) {
+      reportHealth(false, 'rce-not-detected',
+        'On an edit page but the Canvas RCE was not detected.');
+      return;
+    }
+
+    // 3. Components present (with real content) but never marked ready — they
+    //    failed to initialize. Empty stubs are ignored to avoid false alarms.
+    var stalledTabs = Array.prototype.slice
+      .call(document.querySelectorAll('.ntt-tabs'))
+      .filter(function (el) {
+        return el.querySelector('.ntt-tab') && !el.hasAttribute('data-ntt-tabs-ready');
+      });
+    if (stalledTabs.length) {
+      reportHealth(false, 'tabs-stalled',
+        stalledTabs.length + ' tabs component(s) present but not initialized.');
+      return;
+    }
+    var stalledAcc = Array.prototype.slice
+      .call(document.querySelectorAll('.ntt-accordion'))
+      .filter(function (el) {
+        return el.querySelector('.ntt-accordion-header') &&
+          !el.hasAttribute('data-ntt-accordion-ready');
+      });
+    if (stalledAcc.length) {
+      reportHealth(false, 'accordion-stalled',
+        stalledAcc.length + ' accordion component(s) present but not initialized.');
+      return;
+    }
+
+    // Healthy — clears any stale warning left by a previously-broken page.
+    reportHealth(true);
   }
 
   // Canvas renders wiki-page content via JS, so the component markup can appear
