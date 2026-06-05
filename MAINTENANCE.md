@@ -16,6 +16,30 @@ the whole codebase.
 
 ---
 
+## Owner & cadence (do not skip)
+
+The biggest risk to this tool is a Canvas release changing the editor or page
+DOM. Detection-after-the-fact exists (the toolbar/popup health check), but the
+real protection is **catching it in beta before it reaches production — and that
+only happens if a named person owns it.**
+
+- **Maintainer (owner):** _______________  (back-up: _______________)
+- **Cadence:** every Canvas release cycle (Canvas ships ~monthly).
+
+**One-time setup**
+- [ ] Subscribe to the **Canvas Community → Release Notes** (email/RSS). See §"Canvas release-cycle watch."
+- [ ] Confirm you can log in to the beta twin: `https://ntt.beta.instructure.com`.
+
+**Each release cycle**
+- [ ] When release notes post (~2–3 weeks out), skim for **RCE / editor / TinyMCE / theme / page-rendering** changes. No such item → nothing to do.
+- [ ] During the **beta week** (~1 week out), run the [5-minute smoke test](#after-any-canvas-or-chrome-release-5-minute-smoke-test) in beta. (Add the beta host to the extension first — see §"Canvas release-cycle watch.")
+- [ ] If anything breaks: fix on a branch, re-test in beta, and ship (extension zip + Theme upload) **before** the production date.
+
+Everything below is the reference the owner uses when a check fails. Detailed
+procedure is in "Canvas release-cycle watch (Beta is your free early warning)."
+
+---
+
 ## 30-second mental model
 
 - **[runtime.js](runtime.js)** — renders and wires the components (tabs, accordion,
