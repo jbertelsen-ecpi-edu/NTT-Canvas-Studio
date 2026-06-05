@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  var VERSION = '0.8.3';
+  var VERSION = '0.8.4';
 
   // True only in the browser-extension copy (content script). The Canvas Theme
   // copy runs in the page's main world where `chrome.runtime.id` is undefined.

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "NTT Canvas Editor Dev",
-  "version": "0.8.3",
+  "version": "0.8.4",
   "description": "Local development version of the NTT Canvas Editor.",
   "icons": {
     "16": "icons/icon16.png",
@@ -22,15 +22,18 @@
   ],
   "host_permissions": [
     "https://ntt.instructure.com/*",
+    "https://ntt.beta.instructure.com/*",
     "https://studentsecpi.sharepoint.com/*"
   ],
   "content_scripts": [
     {
       "matches": [
-        "https://ntt.instructure.com/courses/*/pages/*"
+        "https://ntt.instructure.com/courses/*/pages/*",
+        "https://ntt.beta.instructure.com/courses/*/pages/*"
       ],
       "exclude_matches": [
-        "https://ntt.instructure.com/courses/*/pages/*/edit*"
+        "https://ntt.instructure.com/courses/*/pages/*/edit*",
+        "https://ntt.beta.instructure.com/courses/*/pages/*/edit*"
       ],
       "js": ["runtime.js"],
       "css": ["runtime.css"],
@@ -38,7 +41,8 @@
     },
     {
       "matches": [
-        "https://ntt.instructure.com/courses/*/pages/*/edit*"
+        "https://ntt.instructure.com/courses/*/pages/*/edit*",
+        "https://ntt.beta.instructure.com/courses/*/pages/*/edit*"
       ],
       "js": ["runtime.js", "authoring.js"],
       "css": ["runtime.css", "authoring.css"],
